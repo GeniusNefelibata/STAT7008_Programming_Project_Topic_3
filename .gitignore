@@ -1,0 +1,21 @@
+﻿__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+.vscode/
+.idea/
+
+# app data
+data/images/
+data/thumbs/
+data/index/*.lock*
+# 若索引很大也忽略：
+# data/index/faiss.index
+
+# logs & tmp
+*.log
+tmp/
+.DS_Store
+.env

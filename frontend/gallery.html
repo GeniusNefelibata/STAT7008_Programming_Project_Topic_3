@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Image Drive · Gallery</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#121822; --border:#1f2a3a; --fg:#e6edf3; --muted:#99a7b4; --accent:#6aa9ff;
+    --radius:16px; --w:1280px;
+  }
+  *{box-sizing:border-box}
+  html, body{height:100%; margin:0; color:var(--fg); background:var(--bg); font-family:system-ui, -apple-system, Segoe UI, "Microsoft Yahei", sans-serif}
+  header{position:sticky; top:0; z-index:5; padding:12px 18px; border-bottom:1px solid var(--border);
+    background:linear-gradient(180deg, rgba(10,14,20,.92), rgba(10,14,20,.7)); backdrop-filter:blur(8px);}
+  .row{display:flex; align-items:center; gap:12px}
+  .brand{font-weight:700}
+  a.link{color:var(--accent); text-decoration:none}
+  .container{max-width:var(--w); margin:16px auto; padding:0 18px}
+  .layout{display:grid; grid-template-columns: 280px 1fr; gap:16px; min-height: calc(100vh - 84px)}
+  @media (max-width:1100px){ .layout{grid-template-columns:1fr} }
+
+  .panel{border:1px solid var(--border); border-radius:14px; background:linear-gradient(180deg,#0f1520,#0b1119); padding:14px}
+  .panel h3{margin:0 0 8px}
+  .muted{color:var(--muted); font-size:12px}
+
+  .filter-group{margin-bottom:14px}
+  label{display:block; font-size:13px; color:var(--muted); margin-bottom:6px}
+  select, input[type="number"]{
+    width:100%; padding:8px 10px; border-radius:10px; border:1px solid #2a3f5a;
+    background:#0b1119; color:var(--fg);
+  }
+  .btn{padding:9px 12px; border-radius:10px; border:1px solid #2a3f5a; background:linear-gradient(180deg,#18314c,#142a40); color:var(--fg); cursor:pointer}
+  .btn:hover{filter:brightness(1.07)}
+  .btn-row{display:flex; gap:8px; flex-wrap:wrap}
+
+  .grid{display:grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap:12px}
+  .thumb-card{border:1px solid var(--border); border-radius:12px; background:#0b1119; overflow:hidden}
+  .thumb-card img{width:100%; aspect-ratio:4/3; object-fit:cover; display:block}
+  .thumb-meta{padding:8px 10px; display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--muted)}
+
+  .footerbar{display:flex; align-items:center; gap:10px; justify-content:flex-start; margin-top:12px}
+  .footerbar .info{color:var(--muted); font-size:12px}
+  .jump{display:flex; align-items:center; gap:6px}
+</style>
+</head>
+<body>
+<header>
+  <div class="row" style="justify-content:space-between">
+    <div class="row"><div class="brand">📚 Gallery</div></div>
+    <a class="link" href="/">← Back to Studio</a>
+  </div>
+</header>
+
+<div class="container">
+  <div class="layout">
+    <!-- Left: Filters -->
+    <aside class="panel">
+      <h3>Filters</h3>
+      <div class="filter-group">
+        <label>Category</label>
+        <select id="f_category">
+          <option value="">All</option>
+          <option value="uncategorized">uncategorized</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Order by ID</label>
+        <select id="f_order">
+          <option value="desc">Newest first (ID ↓)</option>
+          <option value="asc">Oldest first (ID ↑)</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Items per page</label>
+        <select id="f_limit">
+          <option>24</option><option>48</option><option>96</option>
+        </select>
+      </div>
+      <div class="btn-row">
+        <button class="btn" id="btnApply">Apply</button>
+        <button class="btn" id="btnReset">Reset</button>
+      </div>
+      <div class="muted" style="margin-top:10px">Tip: Click image to download. “similar” jumps to Studio for similarity search.</div>
+    </aside>
+
+    <!-- Right: Grid + Pagination -->
+    <main class="panel">
+      <h3>Results</h3>
+      <div id="grid" class="grid"></div>
+
+      <div class="footerbar">
+        <button class="btn" id="btnPrev">Prev</button>
+        <button class="btn" id="btnNext">Next</button>
+        <div class="info" id="pageInfo">Page 1 of 1</div>
+
+        <div class="jump">
+          <span class="muted">Jump to</span>
+          <input id="jumpTo" type="number" min="1" value="1" style="width:70px; padding:6px 8px; border-radius:8px; border:1px solid #2a3f5a; background:#0b1119; color:#e6edf3">
+          <button class="btn" id="btnGo">Go</button>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+const api = p => (p && p.startsWith('http')) ? p : `${location.origin}${p}`;
+
+async function fetchCategories(){
+  try{
+    const r = await fetch(api('/api/analytics/category_breakdown'));
+    if(!r.ok) return [];
+    const rows = await r.json();
+    // Expect rows like [{category:'xxx', count:n}, ...]
+    return rows.map(x => x.category || 'uncategorized').filter(Boolean);
+  }catch(_){ return []; }
+}
+
+async function fetchImages({category='', order='desc', limit=24, page=1}={}){
+  const offset = Math.max(0, (page-1)*limit);
+  const q = new URLSearchParams({ order, limit, offset });
+  if (category) q.set('category', category);
+  const r = await fetch(api('/api/images?' + q.toString()));
+  if(!r.ok) throw new Error('list images failed');
+  return r.json(); // { items:[...], total: N }
+}
+
+function imgCard(it){
+  const el = document.createElement('div');
+  el.className = 'thumb-card';
+  el.innerHTML = `
+    <img src="${api('/api/images/'+it.id+'/view')}" alt="#${it.id}" title="Click to download" onclick="location.href='${api('/api/images/'+it.id+'/download')}'">
+    <div class="thumb-meta">
+      <span>#${it.id} · ${(it.category||'—')}</span>
+      <span>
+        <a href="${api('/api/images/'+it.id+'/download')}" class="link" style="margin-right:8px">download</a>
+        <a href="/#similar=${it.id}" class="link">similar</a>
+      </span>
+    </div>`;
+  return el;
+}
+
+// ---------- State ----------
+let state = {
+  category: '',
+  order: 'desc',
+  limit: 24,
+  page: 1,
+  total: 0,
+  totalPages: 1
+};
+
+function updatePagerUI(){
+  state.totalPages = Math.max(1, Math.ceil((state.total || 0) / state.limit));
+  document.getElementById('pageInfo').textContent = `Page ${state.page} of ${state.totalPages}`;
+  document.getElementById('jumpTo').value = state.page;
+}
+
+async function load(reset=false){
+  if(reset){ state.page = 1; }
+  const data = await fetchImages(state);
+  const items = data.items || [];
+  state.total = Number.isFinite(data.total) ? data.total : (state.page-1)*state.limit + items.length; // fallback
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  items.forEach(it => grid.appendChild(imgCard(it)));
+  updatePagerUI();
+}
+
+// ---------- Events ----------
+(async function boot(){
+  // fill category options
+  const cats = await fetchCategories();
+  const sel = document.getElementById('f_category');
+  cats.forEach(c=>{
+    // avoid duplicate "uncategorized" since it's seeded in markup
+    if (c === 'uncategorized') return;
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    sel.appendChild(opt);
+  });
+
+  document.getElementById('btnApply').onclick = ()=> {
+    state.category = document.getElementById('f_category').value;
+    state.order    = document.getElementById('f_order').value;
+    state.limit    = parseInt(document.getElementById('f_limit').value,10) || 24;
+    load(true);
+  };
+
+  document.getElementById('btnReset').onclick = ()=> {
+    document.getElementById('f_category').value = '';
+    document.getElementById('f_order').value = 'desc';
+    document.getElementById('f_limit').value = '24';
+    state = { category:'', order:'desc', limit:24, page:1, total:0, totalPages:1 };
+    load(true);
+  };
+
+  document.getElementById('btnPrev').onclick = ()=> {
+    if (state.page > 1){ state.page -= 1; load(false); }
+  };
+  document.getElementById('btnNext').onclick = ()=> {
+    if (state.page < state.totalPages){ state.page += 1; load(false); }
+  };
+  document.getElementById('btnGo').onclick = ()=> {
+    const p = parseInt(document.getElementById('jumpTo').value, 10) || 1;
+    state.page = Math.min(Math.max(1, p), state.totalPages);
+    load(false);
+  };
+
+  // initial load
+  load(true);
+})();
+</script>
+</body>
+</html>

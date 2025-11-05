@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Image Drive · Studio</title>
+  <style>
+    :root{
+      --bg:#0b0f14; --panel:#121822; --card:#0f1520; --border:#1f2a3a;
+      --fg:#e6edf3; --muted:#99a7b4; --accent:#6aa9ff; --ok:#a3ffcb; --danger:#ff6a6a;
+      --ring:0 0 0 3px rgba(106,169,255,.25);
+      --radius:16px; --shadow:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.03);
+      --w:1380px;
+      --reserve:230px; /* reserved vertical space for header/hero/tabs */
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; color:var(--fg);
+      font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Microsoft Yahei","PingFang SC","Noto Sans SC",sans-serif;
+      background:
+        radial-gradient(1200px 800px at 10% -10%, #12243a 0%, transparent 60%),
+        radial-gradient(1000px 600px at 110% 10%, #1a2f4a 0%, transparent 60%),
+        var(--bg);
+      overflow:hidden; /* lock page scrolling; only the results pane scrolls */
+    }
+    header{position:sticky; top:0; z-index:50; backdrop-filter: blur(8px);
+      background:linear-gradient(180deg, rgba(10,14,20,.9), rgba(10,14,20,.65));
+      border-bottom:1px solid var(--border);
+    }
+    .bar{max-width:var(--w); margin:0 auto; padding:16px 24px; display:flex; align-items:center; gap:14px}
+    .brand{display:flex; align-items:center; gap:10px; font-weight:700}
+    .logo{width:28px;height:28px; display:grid; place-items:center; border-radius:8px; background:linear-gradient(135deg, var(--accent), #4c78ff); box-shadow:0 6px 20px rgba(76,120,255,.35)}
+    .brand small{color:var(--muted); font-weight:500}
+    .spacer{flex:1}
+    .pill{padding:6px 10px; border:1px solid var(--border); border-radius:999px; color:var(--muted); background:linear-gradient(180deg, #0b1119, #0e151f)}
+
+    .hero{max-width:var(--w); margin:24px auto 0; padding:0 24px 10px; text-align:center}
+    .hero h1{margin:8px 0 4px; font-size:24px}
+    .hero p{margin:0; color:var(--muted)}
+
+    .container{max-width:var(--w); margin:16px auto 24px; padding:0 24px}
+
+    .tabs{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; justify-content:center}
+    .tab{padding:10px 14px; border-radius:12px; border:1px solid var(--border); background:linear-gradient(180deg,#0b1119,#0f1622); color:var(--fg); cursor:pointer; box-shadow: inset 0 1px 0 rgba(255,255,255,.04)}
+    .tab.active{background:linear-gradient(180deg,#132031,#0f1622); border-color:#294261}
+
+    .panel{display:none} .panel.active{display:block}
+    .panelBox{padding:18px; border:1px solid var(--border); border-radius:14px; background:linear-gradient(180deg,#0c121a,#0e141d); box-shadow: var(--shadow); text-align:center}
+    .panelBox h3{margin:8px 0 12px}
+
+    .split{display:grid; gap:16px; grid-template-columns:.9fr 1.1fr; align-items:start}
+    @media (max-width:1100px){ .split{grid-template-columns:1fr} }
+
+    .drop{border:1.8px dashed #2a3b54; border-radius:16px; background:rgba(26,41,63,.35); padding:22px; text-align:center; color:var(--muted)}
+    .drop.drag{border-color:#4c78ff; background:rgba(76,120,255,.08)}
+
+    input[type="text"], .input{padding:12px 14px; border-radius:12px; width:420px; color:var(--fg); border:1px solid var(--border); background:linear-gradient(180deg,#0b1119,#0e151f); text-align:center}
+    input[type="text"]:focus{outline:none; box-shadow: var(--ring); border-color:#385478}
+    input[type="file"]{color:var(--muted)}
+    button{padding:11px 16px; border-radius:12px; color:var(--fg); cursor:pointer; border:1px solid #2a3f5a; background:linear-gradient(180deg,#18314c,#142a40)}
+    button:hover{filter:brightness(1.07)}
+
+    .grid{display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:16px; margin-top:16px}
+    .card{background:linear-gradient(180deg, #0f1520, #0b1119); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden}
+    .card .thumb{width:100%; aspect-ratio:4/3; object-fit:cover; display:block; background:#0c1118}
+    .card .body{padding:10px 12px}
+    .meta{display:flex; justify-content:space-between; color:var(--muted); font-size:12px}
+    .links{display:flex; gap:10px; margin-top:8px}
+    .links a{color:var(--accent); text-decoration:none; font-size:12px}
+    .links a.danger{color:var(--danger)}
+    .score{padding:3px 8px; border-radius:999px; background:rgba(163,255,203,.08); border:1px solid rgba(163,255,203,.25); color:#b7ffd9; font-weight:600; font-size:12px}
+
+    /* Lightbox */
+    .lightbox{position:fixed; inset:0; background:rgba(6,10,16,.72); backdrop-filter: blur(6px); display:none; align-items:center; justify-content:center; z-index:80}
+    .lightbox.show{display:flex}
+    .lb-inner{position:relative; max-width:92vw; max-height:86vh; background:linear-gradient(180deg,#0d121a,#0b0f14); border:1px solid var(--border); border-radius:16px; box-shadow:0 30px 80px rgba(0,0,0,.55); padding:16px}
+    .lb-img{max-width:86vw; max-height:72vh; display:block; border-radius:12px}
+    .lb-meta{display:flex; align-items:center; justify-content:space-between; margin-top:10px; color:var(--muted)}
+    .lb-actions{position:absolute; inset:auto 14px 16px 14px; display:flex; justify-content:space-between; pointer-events:none}
+    .lb-btn{pointer-events:auto; width:42px; height:42px; border-radius:999px; border:1px solid #2a3f5a; background:linear-gradient(180deg,#18314c,#142a40); color:var(--fg); display:grid; place-items:center; cursor:pointer; opacity:.92}
+    .lb-btn:hover{filter:brightness(1.08)}
+    .lb-close{position:absolute; top:10px; right:10px}
+    .lb-hint{font-size:12px}
+
+    /* Pre-upload tray */
+    .pre{margin-top:12px; padding:10px; border:1px dashed #2a3b54; border-radius:12px; background:rgba(26,41,63,.25); display:none}
+    .pre.show{display:block}
+    .prebar{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; color:var(--muted); font-size:12px}
+    .pgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(88px,1fr)); gap:10px}
+    .thumbbox{position:relative; background:#0b1119; border:1px solid var(--border); border-radius:10px; overflow:hidden}
+    .thumbbox img{width:100%; height:72px; object-fit:cover; display:block}
+    .rm{position:absolute; top:6px; right:6px; width:22px; height:22px; padding:0; display:grid; place-items:center; line-height:1; font-size:14px; border-radius:999px; border:1px solid #2a3f5a; background:linear-gradient(180deg,#18314c,#142a40); color:#fff; cursor:pointer}
+    .rm:hover{filter:brightness(1.08)}
+
+    /* Modals / progress */
+    .modal,.prog{position:fixed; inset:0; background:rgba(6,10,16,.72); backdrop-filter: blur(6px); display:none; align-items:center; justify-content:center}
+    .modal.show,.prog.show{display:flex}
+    .modal-card{width:min(520px,92vw); background:linear-gradient(180deg,#0e141d,#0b0f14); border:1px solid var(--border); border-radius:16px; padding:18px 18px 14px; box-shadow:0 30px 80px rgba(0,0,0,.55)}
+    .modal-card h4{margin:0 0 8px; font-size:18px}
+    .modal-actions{margin-top:14px; display:flex; justify-content:flex-end}
+    .btn-primary{padding:10px 16px; border-radius:10px; border:1px solid #2a3f5a; background:linear-gradient(180deg,#1a3552,#152c44); color:var(--fg); cursor:pointer}
+    .prog-card{width:min(680px,94vw); background:linear-gradient(180deg,#0e141d,#0b0f14); border:1px solid var(--border); border-radius:16px; padding:16px; box-shadow:0 30px 80px rgba(0,0,0,.55)}
+    .prog-title{display:flex; justify-content:space-between; align-items:center; margin-bottom:10px}
+    .bar{height:8px; background:#0f1520; border:1px solid #213146; border-radius:999px; overflow:hidden}
+    .bar>span{display:block; height:100%; width:0%; background:linear-gradient(90deg,#4c78ff,#6aa9ff); transition:width .15s}
+    .list{margin-top:12px; max-height:42vh; overflow:auto; border:1px solid #1a2535; border-radius:10px; padding:8px}
+    .rowi{display:grid; grid-template-columns:1fr 100px; gap:10px; align-items:center; padding:6px 4px}
+    .rowi .bar{height:6px}
+    .rowi small{color:var(--muted)}
+    .bar.ind>span{width:40%; background:repeating-linear-gradient(45deg,#4c78ff,#4c78ff 10px,#6aa9ff 10px,#6aa9ff 20px); animation:ind-move 1s linear infinite}
+    @keyframes ind-move{from{transform:translateX(-40%)} to{transform:translateX(140%)}}
+
+    .toast{position:fixed; right:22px; bottom:22px; background:#0e1722; border:1px solid var(--border); padding:10px 14px; border-radius:10px; color:var(--fg); opacity:0; transform:translateY(8px); transition:all .25s}
+    .toast.show{opacity:1; transform:translateY(0)}
+    .hint{color:var(--muted); font-size:12px}
+
+    /* Right: scroller + sticky footer */
+    .results-wrap{display:flex; flex-direction:column; max-height:calc(100vh - var(--reserve));}
+    .results-scroll{flex:1 1 auto; min-height:0; overflow:auto; padding-right:6px; padding-bottom:10px;}
+    .result-footer{position:sticky; bottom:0; background:linear-gradient(180deg,#0c121a,#0e141d); border-top:1px solid #1f2a3a; display:flex; justify-content:center; align-items:center; padding:10px 0 8px; z-index:1;}
+    .view-more-btn{padding:9px 12px; border-radius:10px; border:1px solid #2a3f5a; background:linear-gradient(180deg,#18314c,#142a40); color:#e6edf3; cursor:pointer;}
+    .view-more-btn:hover{ filter:brightness(1.07); }
+  </style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="brand">
+      <div class="logo">📷</div>
+      <div>Image Drive <small>· Studio</small></div>
+    </div>
+    <div class="spacer"></div>
+    <div class="pill">Flask API on same origin</div>
+  </div>
+</header>
+
+<section class="hero">
+  <h1>Search • Compare • Organize</h1>
+  <p>Upload images, run semantic & OCR search, and explore similar results — all in one clean studio.</p>
+</section>
+
+<div class="container">
+  <div class="tabs" id="tabs">
+    <div class="tab active" data-target="upload">Upload</div>
+    <div class="tab" data-target="text">Text → Image</div>
+    <div class="tab" data-target="image">Image → Image</div>
+    <div class="tab" data-target="ocr">OCR Search</div>
+    <div class="tab" data-target="findid">Find by ID</div>
+    <div class="tab" data-target="browse">Browse</div>
+  </div>
+
+  <div class="split">
+    <!-- Left -->
+    <section class="panelBox">
+      <section class="panel active" id="upload">
+        <h3>Upload</h3>
+        <div id="drop" class="drop">Drag & drop images here, or choose files.</div>
+        <div class="row" style="margin-top:10px">
+          <input multiple id="files" type="file" accept="image/*,.webp,.jpg,.jpeg,.png,.bmp" />
+          <button id="btnUpload" disabled>Upload</button>
+        </div>
+        <div id="pre" class="pre">
+          <div class="prebar">
+            <span id="preInfo">0 file · 0 KB</span>
+            <div><button id="btnClear" class="btn-primary" style="padding:6px 10px;">Clear</button></div>
+          </div>
+          <div id="pgrid" class="pgrid"></div>
+        </div>
+        <div class="hint">POST /api/upload · thumbnails generated at 512px</div>
+      </section>
+
+      <section class="panel" id="text">
+        <h3>Search (Text → Image)</h3>
+        <div class="row">
+          <input id="qText" class="input" placeholder="cat, dog, invoice …"/>
+          <button id="btnQText">Search</button>
+        </div>
+        <div class="hint">GET /api/search?q=...&k=...</div>
+      </section>
+
+      <section class="panel" id="image">
+        <h3>Search by Image</h3>
+        <div class="row">
+          <input id="qImg" type="file" accept="image/*,.webp"/>
+          <button id="btnQImg">Search by Image</button>
+        </div>
+        <div class="hint">POST /api/search_by_image</div>
+      </section>
+
+      <section class="panel" id="ocr">
+        <h3>Search OCR</h3>
+        <div class="row">
+          <input id="qOCR" class="input" placeholder="TOTAL / 金额 …"/>
+          <button id="btnQOCR">Search OCR</button>
+        </div>
+        <div class="hint">GET /api/search_ocr?q=...</div>
+      </section>
+
+      <section class="panel" id="findid">
+        <h3>Find by ID (Exact)</h3>
+        <div class="row">
+          <input id="qId" class="input" placeholder="e.g., 2"/>
+          <button id="btnFindId">Find</button>
+        </div>
+        <div class="hint">GET /api/images/&lt;id&gt; (exact match)</div>
+      </section>
+
+      <section class="panel" id="browse">
+        <h3>Browse Library</h3>
+        <button id="btnBrowse">Refresh</button>
+        <div class="hint">GET /api/images</div>
+      </section>
+    </section>
+
+    <!-- Right results -->
+    <section class="panelBox results-wrap">
+      <div class="gridbar" style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:8px;">
+        <span class="hint">Sort by ID:</span>
+        <button id="sortAsc" class="tab">ID ↑</button>
+        <button id="sortDesc" class="tab active">ID ↓</button>
+      </div>
+
+      <div class="results-scroll">
+        <div class="grid" id="out"></div>
+      </div>
+
+      <div class="result-footer">
+        <button class="view-more-btn" id="btnViewMore">Read More</button>
+      </div>
+    </section>
+
+    <!-- Lightbox -->
+    <div class="lightbox" id="lightbox" aria-modal="true" role="dialog">
+      <div class="lb-inner">
+        <button class="lb-btn lb-close" id="lbClose" title="Close (Esc)">✕</button>
+        <img id="lbImg" class="lb-img" alt="preview"/>
+        <div class="lb-actions">
+          <button class="lb-btn" id="lbPrev" title="Prev (←)">◀</button>
+          <button class="lb-btn" id="lbNext" title="Next (→)">▶</button>
+        </div>
+        <div class="lb-meta">
+          <div id="lbCaption">Preview</div>
+          <div class="lb-hint">Esc to close · ← / → to navigate</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Progress Modal -->
+<div class="prog" id="prog">
+  <div class="prog-card">
+    <div class="prog-title"><strong>Uploading…</strong><span id="overallPct">0%</span></div>
+    <div class="bar"><span id="overallBar"></span></div>
+    <div class="list" id="progList"></div>
+  </div>
+</div>
+
+<!-- Result Modal -->
+<div class="modal" id="modal">
+  <div class="modal-card">
+    <h4 id="modalTitle">Upload complete</h4>
+    <p id="modalBody">All files uploaded.</p>
+    <div class="modal-actions"><button class="btn-primary" id="modalOk">OK</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast">Done</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const api = p => (p && p.startsWith('http')) ? p : `${location.origin}${p}`;
+const out = $('#out');
+
+/* helpers */
+function normScore(s){ if(s==null || isNaN(s)) return null; const v=(s+1)/2; return Math.max(0,Math.min(1,v)); }
+function scoreBadge(s){ const v=normScore(s); return v==null? '': `<span class="score">${v.toFixed(3)}</span>`; }
+function showToast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1400); }
+function openModal(title, body){ $('#modalTitle').textContent=title||'Notice'; $('#modalBody').textContent=body||''; $('#modal').classList.add('show'); }
+function closeModal(){ $('#modal').classList.remove('show'); }
+$('#modalOk').addEventListener('click', closeModal);
+$('#modal').addEventListener('click', e=>{ if(e.target.id==='modal') closeModal(); });
+
+/* cards */
+function card(item){
+  const id = item.image_id ?? item.id;
+  const src = api(`/api/images/${id}/view`);
+  const dl  = api(`/api/images/${id}/download`);
+  return `<div class="card">
+    <img class="thumb" src="${src}" loading="lazy" alt="img-${id}" onclick="openLightboxById(${id})"/>
+    <div class="body">
+      <div class="meta"><span>ID #${id}</span>${scoreBadge(item.score)}</div>
+      <div class="links">
+        <a href="${dl}">download</a>
+        <a href="#" onclick="similar(${id});return false;">similar</a>
+        <a href="#" class="danger" onclick="deleteImage(${id});return false;">delete</a>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* state + sorting */
+let currentList=[], currentIndex=-1;
+let sortOrder = 'desc';
+
+function applySort(){
+  if(!currentList || !currentList.length){
+    out.innerHTML = `<div class="hint">No results yet. Try an upload or a search.</div>`;
+    return;
+  }
+  currentList.sort((a,b)=>{
+    const ida = (a.image_id ?? a.id);
+    const idb = (b.image_id ?? b.id);
+    return sortOrder === 'asc' ? ida - idb : idb - ida;
+  });
+  out.innerHTML = currentList.map(card).join('');
+}
+
+/* render helpers */
+function render(list){
+  const limited = (list || []).slice(0, 8);
+  currentList = limited;
+  applySort();
+}
+function renderSingle(detail){
+  currentList = [{ image_id: detail.id, score: 1.0 }];
+  applySort();
+}
+
+/* delete */
+async function deleteImage(id){
+  if(!confirm(`Delete image #${id}? This cannot be undone.`)) return;
+  try{
+    const r = await fetch(api(`/api/images/${id}`), { method:'DELETE' });
+    const j = await r.json();
+    if(!r.ok || j.ok !== true) throw new Error(j.error || 'Delete failed');
+    currentList = currentList.filter(x => (x.image_id ?? x.id) !== id);
+    applySort();
+    showToast(`Deleted #${id}`);
+  }catch(e){
+    alert('Failed to delete: ' + e.message);
+  }
+}
+
+/* lightbox */
+function openLightbox(idx){
+  if(idx<0||idx>=currentList.length) return;
+  currentIndex=idx;
+  const it=currentList[idx];
+  const id=it.image_id??it.id;
+  $('#lbImg').src=api(`/api/images/${id}/view`);
+  const ns=normScore(it.score);
+  $('#lbCaption').textContent=`ID #${id}${ns!=null?` · score ${ns.toFixed(3)}`:''}`;
+  $('#lightbox').classList.add('show');
+}
+window.openLightboxById=(id)=>{ const idx=currentList.findIndex(x=>(x.image_id??x.id)===id); if(idx!==-1) openLightbox(idx); };
+function closeLightbox(){ $('#lightbox').classList.remove('show'); }
+function nextLightbox(){ if(!currentList.length) return; openLightbox((currentIndex+1)%currentList.length); }
+function prevLightbox(){ if(!currentList.length) return; openLightbox((currentIndex-1+currentList.length)%currentList.length); }
+$('#lbClose').onclick=closeLightbox;
+$('#lightbox').addEventListener('click',e=>{ if(e.target.id==='lightbox') closeLightbox(); });
+window.addEventListener('keydown',e=>{
+  const on=$('#lightbox').classList.contains('show');
+  if(!on) return;
+  if(e.key==='Escape') closeLightbox();
+  if(e.key==='ArrowRight') nextLightbox();
+  if(e.key==='ArrowLeft') prevLightbox();
+});
+
+/* tabs and sort buttons */
+document.querySelectorAll('.tab').forEach(t=> t.onclick=()=>{
+  if(!t.dataset.target){
+    if(t.id==='sortAsc'){ sortOrder='asc'; $('#sortAsc').classList.add('active'); $('#sortDesc').classList.remove('active'); applySort(); }
+    if(t.id==='sortDesc'){ sortOrder='desc'; $('#sortDesc').classList.add('active'); $('#sortAsc').classList.remove('active'); applySort(); }
+    return;
+  }
+  document.querySelectorAll('.tab').forEach(x=>{ if(x.dataset.target){ x.classList.remove('active'); }});
+  t.classList.add('active');
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById(t.dataset.target).classList.add('active');
+});
+
+/* pre-upload tray */
+let selectedFiles=[];
+function bytes(n){ if(!n) return '0 B'; const u=['B','KB','MB','GB']; let i=0; while(n>=1024 && i<u.length-1){ n/=1024; i++; } return `${n.toFixed(i?1:0)} ${u[i]}`; }
+function renderPre(){
+  const box=$('#pre'), grid=$('#pgrid'), info=$('#preInfo'), btn=$('#btnUpload');
+  if(!selectedFiles.length){ box.classList.remove('show'); grid.innerHTML=''; info.textContent='0 file · 0 KB'; btn.disabled=true; return; }
+  btn.disabled=false; box.classList.add('show');
+  const total=selectedFiles.reduce((a,f)=>a+(f.size||0),0);
+  info.textContent=`${selectedFiles.length} file(s) · ${bytes(total)}`;
+  grid.innerHTML='';
+  selectedFiles.forEach((f,idx)=>{
+    const url=URL.createObjectURL(f);
+    grid.insertAdjacentHTML('beforeend', `<div class="thumbbox"><img src="${url}" alt="${f.name}"/><button class="rm" title="remove" onclick="removePre(${idx})">✕</button></div>`);
+  });
+}
+window.removePre = (idx)=>{ selectedFiles.splice(idx,1); renderPre(); };
+$('#btnClear').onclick=()=>{ selectedFiles=[]; renderPre(); };
+
+const drop=$('#drop');
+drop.addEventListener('dragover',e=>{e.preventDefault(); drop.classList.add('drag');});
+drop.addEventListener('dragleave',()=>drop.classList.remove('drag'));
+drop.addEventListener('drop',e=>{
+  e.preventDefault(); drop.classList.remove('drag');
+  const fs=[...e.dataTransfer.files].filter(f=>f.type.startsWith('image/'));
+  if(!fs.length) return;
+  selectedFiles=selectedFiles.concat(fs);
+  renderPre();
+});
+$('#files').addEventListener('change',e=>{
+  const fs=[...e.target.files].filter(f=>f.type.startsWith('image/'));
+  selectedFiles=fs; renderPre();
+});
+
+/* upload with progress */
+$('#btnUpload').onclick = ()=>{ if(!selectedFiles.length) return alert('Choose file(s)'); uploadWithProgress(selectedFiles); };
+
+async function uploadWithProgress(files){
+  const prog=$('#prog'), list=$('#progList'), overallBar=$('#overallBar'), overallPct=$('#overallPct');
+  list.innerHTML=''; overallBar.style.width='0%'; overallPct.textContent='0%'; prog.classList.add('show');
+  const rows=files.map((f,i)=>{ const id=`p${i}`; list.insertAdjacentHTML('beforeend', `<div class="rowi"><div><small>${f.name}</small><div class="bar"><span id="${id}"></span></div></div><div style="text-align:right"><small id="${id}-txt">0%</small></div></div>`); return {file:f, bar:document.getElementById(id), txt:document.getElementById(id+'-txt'), indeterminate:false}; });
+  const perFilePct=new Array(rows.length).fill(0);
+  const setOverall=()=>{ const avg = rows.length? (perFilePct.reduce((a,b)=>a+b,0)/rows.length):0; overallBar.style.width=`${avg}%`; overallPct.textContent=`${Math.round(avg)}%`; };
+  const results=[];
+  for(let i=0;i<rows.length;i++){
+    const r=rows[i]; const fd=new FormData(); fd.append('file', r.file);
+    await new Promise((resolve)=>{
+      const xhr=new XMLHttpRequest(); xhr.open('POST', api('/api/upload'));
+      xhr.upload.onprogress=(e)=>{
+        if(e.lengthComputable){
+          const pct=Math.min(99, Math.floor((e.loaded/e.total)*100));
+          perFilePct[i]=pct; r.bar.style.width=pct+'%'; r.txt.textContent=pct+'%';
+          r.bar.parentElement.classList.remove('ind'); r.indeterminate=false;
+        } else {
+          if(!r.indeterminate){ r.bar.parentElement.classList.add('ind'); r.indeterminate=true; }
+        }
+        setOverall();
+      };
+      xhr.onreadystatechange=()=>{
+        if(xhr.readyState===4){
+          try{ results.push(JSON.parse(xhr.responseText||'{}')); }catch(_){}
+          perFilePct[i]=100; r.bar.parentElement.classList.remove('ind'); r.bar.style.width='100%'; r.txt.textContent='100%'; setOverall(); resolve();
+        }
+      };
+      xhr.send(fd);
+    });
+  }
+  prog.classList.remove('show');
+  const saved = results.flatMap(x=>x.saved||[]);
+  const ok = saved.filter(x=>x && x.image_id);
+  const newCount = ok.filter(x=>x.duplicate===false || x.duplicate===undefined).length;
+  const dupCount = ok.filter(x=>x.duplicate===true).length;
+  const errCount = saved.length - ok.length;
+  const ids = ok.map(x=>x.image_id).join(', ');
+  render(ok.map(x=>({image_id:x.image_id}))); showToast('Uploaded ✓');
+  let msg = `${ok.length} file(s) processed.
+New: ${newCount}`; if(dupCount) msg += `  ·  Duplicates: ${dupCount}`; if(errCount>0) msg += `  ·  Failed: ${errCount}`; if(ids) msg += `
+IDs: ${ids}`; openModal('Upload complete', msg);
+  selectedFiles=[]; renderPre();
+}
+
+/* searches */
+$('#btnQText').onclick = async ()=>{
+  const q=$('#qText').value.trim(); if(!q) return;
+  const r=await fetch(api(`/api/search?q=${encodeURIComponent(q)}&k=24`));
+  render((await r.json()).results);
+};
+$('#btnQImg').onclick = async ()=>{
+  const f=$('#qImg').files[0]; if(!f) return alert('Choose an image');
+  const fd=new FormData(); fd.append('file',f);
+  const r=await fetch(api('/api/search_by_image'), {method:'POST', body:fd});
+  render((await r.json()).results);
+};
+$('#btnQOCR').onclick = async ()=>{
+  const q=$('#qOCR').value.trim(); if(!q) return;
+  const r=await fetch(api(`/api/search_ocr?q=${encodeURIComponent(q)}`));
+  render((await r.json()).results);
+};
+
+/* exact find by ID */
+async function findByIdExact(id){
+  try{
+    const r = await fetch(api(`/api/images/${id}`));
+    if(!r.ok){ out.innerHTML = `<div class="hint">ID #${id} not found.</div>`; return; }
+    const detail = await r.json();
+    renderSingle(detail);
+  }catch(e){
+    out.innerHTML = `<div class="hint">Lookup failed: ${e}</div>`;
+  }
+}
+document.getElementById('btnFindId').onclick = ()=>{
+  const id = parseInt(document.getElementById('qId').value, 10);
+  if(!id){ out.innerHTML = `<div class="hint">Enter a numeric ID.</div>`; return; }
+  findByIdExact(id);
+};
+
+/* keep similarity search for links on cards */
+async function similar(id){
+  const r = await fetch(api(`/api/images/${id}/similar?k=18`));
+  const j = await r.json();
+  const list = j.results || [];
+  render(list);
+}
+
+/* browse */
+async function fetchImages(){
+  const r = await fetch(api(`/api/images?order=${sortOrder}&limit=50`));
+  const j = await r.json();
+  render(j.items || j);
+}
+document.getElementById('btnBrowse').onclick = fetchImages;
+
+/* sticky footer button -> gallery */
+document.getElementById('btnViewMore').addEventListener('click', () => { location.href = '/gallery'; });
+
+/* light boot */
+window.addEventListener('load', async ()=>{ try{ await fetchImages(); }catch(e){} });
+
+</script>
+</body>
+</html>
