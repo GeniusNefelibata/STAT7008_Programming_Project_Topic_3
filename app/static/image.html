@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Image · Detail</title>
+  <style>
+    :root{--bg:#0b0f14;--panel:#121822;--border:#1f2a3a;--fg:#e6edf3;--muted:#9bb;--accent:#6aa9ff}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-sans-serif,system-ui}
+    .wrap{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:1fr 360px;gap:18px;padding:18px}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+    .main{min-height:80vh;display:grid;grid-template-rows:auto 1fr}
+    header{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border)}
+    header a{color:var(--accent);text-decoration:none}
+    .imgbox{display:grid;place-items:center;padding:14px}
+    .imgbox img{max-width:100%;height:auto;border-radius:10px}
+    .meta{padding:10px 14px;color:var(--muted)}
+    .side header{padding:10px 12px;border-bottom:1px solid var(--border)}
+    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:12px}
+    .thumb{display:block;border:1px solid var(--border);border-radius:10px;overflow:hidden;text-decoration:none;color:inherit}
+    .thumb img{width:100%;height:140px;object-fit:cover;display:block}
+    .thumb small{display:block;padding:6px 8px;color:var(--muted)}
+    .score{float:right}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card main">
+    <header>
+      <a href="/">← Back</a>
+      <div id="title">Image #</div>
+      <div style="flex:1"></div>
+      <a id="btnDownload" href="#" download>Download</a>
+    </header>
+    <div class="imgbox"><img id="img" alt=""/></div>
+    <div class="meta" id="meta"></div>
+  </div>
+  <div class="card side">
+    <header>Similar</header>
+    <div class="grid" id="similar"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const id = parseInt(location.pathname.split('/').pop());
+  const $ = s => document.querySelector(s);
+
+  async function loadDetail(){
+    const r = await fetch(`/api/images/${id}`);
+    const j = await r.json();
+    $('#title').textContent = `Image #${j.id} (${j.width}×${j.height})`;
+    $('#img').src = `/api/images/${id}/view`;
+    $('#btnDownload').href = `/api/images/${id}/download`;
+    $('#meta').textContent = `sha256=${j.sha256} • ${Math.round((j.size_bytes||0)/1024)} KB • ${j.mime||''} • category=${j.category||''}`;
+  }
+
+  async function loadSimilar(){
+    const r = await fetch(`/api/images/${id}/similar?k=20`);
+    const j = await r.json();
+    const box = $('#similar'); box.innerHTML='';
+    (j.items||[]).forEach(it=>{
+      const a = document.createElement('a'); a.className='thumb'; a.href=`/image/${it.id}`;
+      const img = document.createElement('img'); img.loading='lazy'; img.src=`/api/images/${it.id}/thumb`;
+      const cap = document.createElement('small'); cap.textContent=`#${it.id}  ${(it.score*100).toFixed(0)}%`;
+      cap.innerHTML = `#${it.id} <span class="score">${Math.round(it.score*100)}%</span>`;
+      a.appendChild(img); a.appendChild(cap); box.appendChild(a);
+    });
+  }
+
+  loadDetail(); loadSimilar();
+})();
+</script>
+</body>
+</html>

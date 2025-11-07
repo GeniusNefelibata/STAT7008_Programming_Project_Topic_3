@@ -121,6 +121,12 @@ def create_app(light: bool = False):
             app.extensions['vec_model']   = None
             app.extensions['faiss_store'] = None
 
+    # app/__init__.py （在 home() 下面追加一个页面映射）
+    @app.get("/image/<int:image_id>")
+    def image_detail(image_id: int):
+        # 直接返回静态文件，页面内用 JS 从 URL 里解析 id 去调 API
+        return current_app.send_static_file("image.html")
+    
     # ----- Static home -----
     @app.get("/")
     def home():
