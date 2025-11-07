@@ -1,6 +1,7 @@
 # app/__init__.py
 import os
 from importlib import import_module
+from tkinter import Image
 from flask import Flask, jsonify, current_app, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager
@@ -16,7 +17,12 @@ def create_app(light: bool = False):
     app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret")
     app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY", "dev-jwt-secret")
     # 主业务库（图片/向量等），默认走 instance/image_drive.db；也兼容外部传入 DATABASE_URL
-    default_image_db = f"sqlite:///{os.path.abspath(os.path.join(app.instance_path, 'image_drive.db')).replace('\\','/')}"
+    #暂时修改default_image_db = f"sqlite:///{os.path.abspath(os.path.join(app.instance_path, 'image_drive.db')).replace('\\','/')}"
+    # app/__init__.py 修改为：
+    path = os.path.abspath(os.path.join(app.instance_path, 'image_drive.db')).replace('\\', '/')
+    default_image_db = f"sqlite:///{path}"
+    app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", default_image_db)
+
     app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", default_image_db)
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
@@ -24,10 +30,15 @@ def create_app(light: bool = False):
     os.makedirs(app.instance_path, exist_ok=True)
 
     # 单独的认证库（auth.db），可通过 AUTH_DB 覆盖
+    #暂时替换
     auth_db_file = os.environ.get("AUTH_DB", os.path.join(app.instance_path, "auth.db"))
+    auth_path = os.path.abspath(auth_db_file).replace('\\', '/')
+    app.config["SQLALCHEMY_BINDS"] = {"auth": f"sqlite:///{auth_path}"}
+
+    """auth_db_file = os.environ.get("AUTH_DB", os.path.join(app.instance_path, "auth.db"))
     app.config["SQLALCHEMY_BINDS"] = {
         "auth": f"sqlite:///{os.path.abspath(auth_db_file).replace('\\','/')}"
-    }
+    }"""
 
     # 资源目录（上传与缩略图）
     app.config["UPLOAD_DIR"] = os.path.abspath(os.environ.get("UPLOAD_DIR", "data/images"))
@@ -150,10 +161,40 @@ def create_app(light: bool = False):
             app.extensions["faiss_store"] = None
 
     # app/__init__.py （在 home() 下面追加一个页面映射）
-    @app.get("/image/<int:image_id>")
+    """@app.get("/image/<int:image_id>")
     def image_detail(image_id: int):
         # 直接返回静态文件，页面内用 JS 从 URL 里解析 id 去调 API
-        return current_app.send_static_file("image.html")
+        return current_app.send_static_file("image.html")"""
+    @app.route("/api/images/<int:id>/view")
+    def view_image(id):
+        img = Image.query.get(id)
+        if not img:
+            return jsonify({"error": "not found"}), 404
+
+        # 统一路径分隔符（Windows → /）
+        real_path = img.path.replace("\\", "/")
+
+        # 确认文件存在
+        if not os.path.exists(real_path):
+            return jsonify({"error": "file not found", "path": real_path}), 404
+
+        return send_file(real_path)
+    
+    from flask import send_from_directory
+
+    @app.route("/image/<int:image_id>")
+    def serve_image_page(image_id):
+        return send_from_directory("static", "image.html")
+    
+
+    @app.route("/image/<int:image_id>")
+    def image_detail(image_id):
+        """Render the HTML detail page for one image"""
+        image = Image.query.get(image_id)
+        if not image:
+            return render_template("404.html"), 404
+        return render_template("image.html", image=image)
+
     
     # ----- Static home -----
     # ---------- Static home ----------

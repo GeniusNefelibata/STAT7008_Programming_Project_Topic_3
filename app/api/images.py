@@ -165,7 +165,18 @@ def similar_by_id(image_id: int):
         results = [r for r in results if r["image_id"] != image_id]
         results.insert(0, {"image_id": image_id, "score": 1.0, "score01": 1.0})
 
-    return jsonify(seed=seed_payload, results=results)
+    #临时更改return jsonify(seed=seed_payload, results=results)
+    # 统一为前端 image.html 期望的返回结构：
+    # { items: [{id, score}], seed: {...} }
+    items = [
+        {
+            "id": r["image_id"],
+            # 优先用已算好的 0-1 分数；没有就把余弦分数映射到 0-1
+            "score": r.get("score01") if r.get("score01") is not None else _to01(r.get("score"))
+        }
+        for r in results
+    ]
+    return jsonify(items=items, seed=seed_payload)
 
 
 # Delete image + files

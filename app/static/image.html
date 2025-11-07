@@ -5,23 +5,59 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Image · Detail</title>
   <style>
-    :root{--bg:#0b0f14;--panel:#121822;--border:#1f2a3a;--fg:#e6edf3;--muted:#9bb;--accent:#6aa9ff}
-    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-sans-serif,system-ui}
-    .wrap{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:1fr 360px;gap:18px;padding:18px}
-    .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
-    .main{min-height:80vh;display:grid;grid-template-rows:auto 1fr}
-    header{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border)}
-    header a{color:var(--accent);text-decoration:none}
-    .imgbox{display:grid;place-items:center;padding:14px}
-    .imgbox img{max-width:100%;height:auto;border-radius:10px}
-    .meta{padding:10px 14px;color:var(--muted)}
-    .side header{padding:10px 12px;border-bottom:1px solid var(--border)}
-    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:12px}
-    .thumb{display:block;border:1px solid var(--border);border-radius:10px;overflow:hidden;text-decoration:none;color:inherit}
-    .thumb img{width:100%;height:140px;object-fit:cover;display:block}
-    .thumb small{display:block;padding:6px 8px;color:var(--muted)}
-    .score{float:right}
-  </style>
+  :root{
+    --bg:#0b0f14;--panel:#121822;--border:#1f2a3a;--fg:#e6edf3;--muted:#9bb;--accent:#6aa9ff;
+    /* JS 会改这个变量来控制 Similar 的列数 */
+    --sim-cols:2;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-sans-serif,system-ui}
+
+  /* 主布局：左主图 + 右相似 */
+  .wrap{
+    max-width:1400px;margin:0 auto;
+    display:grid;grid-template-columns:minmax(560px,1fr) 380px;
+    gap:20px;padding:18px;
+  }
+  /* 窄屏：上下布局 */
+  @media (max-width: 1200px){
+    .wrap{grid-template-columns:1fr}
+    .side{position:static;max-height:none}
+  }
+
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  .main{min-height:70vh;display:grid;grid-template-rows:auto 1fr auto}
+
+  header{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border)}
+  header a{color:var(--accent);text-decoration:none}
+
+  /* 主图容器：保证合理可视区 */
+  .imgbox{display:grid;place-items:center;padding:18px;min-height:320px}
+  .imgbox img{
+    /* 限制最大尺寸：不会太小也不会溢出屏幕 */
+    max-width:min(100%, 920px);
+    max-height:65vh;
+    width:auto;height:auto;border-radius:12px;
+  }
+
+  .meta{padding:10px 14px;color:var(--muted)}
+
+  /* 右侧 Similar：吸顶 + 独立滚动 */
+  .side{position:sticky;top:18px;align-self:start;max-height:calc(100vh - 36px);overflow:auto}
+  .side header{padding:10px 12px;border-bottom:1px solid var(--border)}
+
+  /* Similar 网格：列数由 --sim-cols 控制 */
+  .grid{display:grid;grid-template-columns:repeat(var(--sim-cols), 1fr);gap:10px;padding:12px}
+  .thumb{display:block;border:1px solid var(--border);border-radius:10px;overflow:hidden;text-decoration:none;color:inherit;background:#0f1520}
+  .thumb img{width:100%;height:110px;object-fit:cover;display:block}
+  .thumb small{display:block;padding:6px 8px;color:var(--muted)}
+  .score{float:right}
+
+  /* 条目很多时，适度缩小缩略图高度以容纳更多行 */
+  .grid.compact .thumb img{height:96px}
+  .grid.ultra   .thumb img{height:86px}
+</style>
+
 </head>
 <body>
 <div class="wrap">
@@ -45,6 +81,7 @@
 (function(){
   const id = parseInt(location.pathname.split('/').pop());
   const $ = s => document.querySelector(s);
+  let currentSimCount = 0;
 
   async function loadDetail(){
     const r = await fetch(`/api/images/${id}`);
@@ -55,21 +92,55 @@
     $('#meta').textContent = `sha256=${j.sha256} • ${Math.round((j.size_bytes||0)/1024)} KB • ${j.mime||''} • category=${j.category||''}`;
   }
 
+  /* ➜ 根据数量与屏幕宽度自适应列数 */
+  function setSimilarColumns(count){
+    currentSimCount = count;
+    const w = window.innerWidth;
+    let cols = 1;
+    if (count >= 4) cols = 2;
+    if (count >= 9  && w >= 1360) cols = 3;
+    if (count >= 16 && w >= 1680) cols = 4;
+    document.documentElement.style.setProperty('--sim-cols', cols);
+
+    // 很多条目时，缩略图略微变小
+    const grid = $('#similar');
+    grid.classList.toggle('compact', count >= 12);
+    grid.classList.toggle('ultra',   count >= 24);
+  }
+  window.addEventListener('resize', ()=>setSimilarColumns(currentSimCount));
+
+  /* ➜ 相似图渲染（兼容 items / results / 数组，缩略图404回退到原图） */
   async function loadSimilar(){
-    const r = await fetch(`/api/images/${id}/similar?k=20`);
-    const j = await r.json();
+    const res = await fetch(`/api/images/${id}/similar?k=24`);
+    const j = await res.json();
+    const list = Array.isArray(j) ? j : (j.items || j.results || []);
+    setSimilarColumns(list.length);
+
     const box = $('#similar'); box.innerHTML='';
-    (j.items||[]).forEach(it=>{
-      const a = document.createElement('a'); a.className='thumb'; a.href=`/image/${it.id}`;
-      const img = document.createElement('img'); img.loading='lazy'; img.src=`/api/images/${it.id}/thumb`;
-      const cap = document.createElement('small'); cap.textContent=`#${it.id}  ${(it.score*100).toFixed(0)}%`;
-      cap.innerHTML = `#${it.id} <span class="score">${Math.round(it.score*100)}%</span>`;
+    if (!list.length){
+      box.innerHTML = `<div style="padding:12px;color:var(--muted)">No similar images.</div>`;
+      return;
+    }
+
+    list.forEach(it=>{
+      const iid = it.id ?? it.image_id ?? it.imageId;
+      if (!iid) return;
+      const score = (typeof it.score === 'number' ? it.score : (it.score01 ?? 0));
+
+      const a = document.createElement('a'); a.className='thumb'; a.href=`/image/${iid}`;
+      const img = document.createElement('img');
+      img.loading='lazy'; img.src=`/api/images/${iid}/thumb`;
+      img.onerror = () => { img.onerror = null; img.src = `/api/images/${iid}/view`; };
+
+      const cap = document.createElement('small');
+      cap.innerHTML = `#${iid} <span class="score">${Math.round(score*100)}%</span>`;
+
       a.appendChild(img); a.appendChild(cap); box.appendChild(a);
     });
   }
 
-  loadDetail(); loadSimilar();
+  // 调用顺序
+  loadDetail();
+  loadSimilar();
 })();
 </script>
-</body>
-</html>
