@@ -4,11 +4,13 @@ import os
 import tempfile
 from typing import Iterable, List, Tuple, Optional
 
+import numpy as np
+
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required
-from sqlalchemy import select
+from sqlalchemy import select, func
 from .. import db
-from ..models import Image as ImageModel, OcrText
+from ..models import Image as ImageModel, OcrText, Embedding
 
 bp = Blueprint("search", __name__)
 
@@ -123,72 +125,87 @@ def search_ocr():
 @bp.get("/api/search/_deepcheck")
 def deepcheck():
     """
-    Return current config + FAISS status + model status + an optional probe.
-    Helpful when search endpoints do not return results.
+    健康检查（鲁棒版）：把可能是 method/np 类型的字段转换成可 JSON 序列化的值，避免 500。
     """
-    app = current_app
-    vm, fs = _get_vm_and_index()
+    import numpy as np
 
-    # config snapshot
+    def jval(v):
+        """将 v 转成 jsonify 友好的类型：可调用则尝试调用；np 标量转原生；其余转 str。"""
+        try:
+            if callable(v):
+                v = v()
+        except Exception:
+            # 调用失败就保留原值
+            pass
+        # numpy 标量 -> python 标量
+        if isinstance(v, np.generic):
+            return v.item()
+        # 允许的原生类型直接返回
+        if isinstance(v, (type(None), bool, int, float, str)):
+            return v
+        # 其它（例如 Path、enum、对象实例、方法等）做字符串化
+        return str(v)
+
     out = {
         "cfg": {
-            "EMBED_DEVICE": app.config.get("EMBED_DEVICE"),
-            "EMBED_MODEL": app.config.get("EMBED_MODEL"),
-            "INDEX_PATH": app.config.get("FAISS_INDEX_PATH"),
-        }
+            "EMBED_DEVICE": current_app.config.get("EMBED_DEVICE"),
+            "EMBED_MODEL": current_app.config.get("EMBED_MODEL"),
+            "INDEX_PATH": current_app.config.get("FAISS_INDEX_PATH"),
+        },
+        "faiss": {"ok": False},
+        "model": {"ok": False},
+        "probe": None,
     }
 
-    # faiss status (best effort)
-    faiss_info = {"ok": False}
+    # model 信息
     try:
-        if fs is not None:
-            # Try to expose basic stats if available
-            attrs = {}
-            for key in ("dim", "metric", "ntotal", "path", "index_path"):
-                if hasattr(fs, key):
-                    attrs[key] = getattr(fs, key)
-            faiss_info.update(attrs)
-            # consider ok if it can accept a dummy query OR ntotal > 0
-            ok = False
-            try:
-                # some stores accept vector length 1 and will error; so guard
-                if getattr(fs, "ntotal", 0) > 0:
-                    ok = True
-            except Exception:
-                ok = False
-            faiss_info["ok"] = bool(ok)
-    except Exception:
-        pass
-    out["faiss"] = faiss_info
-
-    # model status
-    model_info = {"ok": False, "name": None, "dim": None}
-    try:
-        if vm is not None:
-            model_info["name"] = getattr(vm, "name", None) or app.config.get("EMBED_MODEL")
-            model_info["dim"] = getattr(vm, "dim", None)
-            model_info["ok"] = True
-    except Exception:
-        model_info["ok"] = False
-    out["model"] = model_info
-
-    # quick probe: pick one image id and try to search its neighbors
-    try:
-        row = db.session.execute(select(ImageModel.id).limit(1)).first()
-        if row and fs is not None and vm is not None:
-            iid = int(row[0])
-            # if your VecModel can embed by image path quickly:
-            img = db.session.get(ImageModel, iid)
-            qv = vm.embed_image(img.path)
-            raw_hits = fs.search(qv, k=5)
-            hits = _norm_hits(raw_hits)
-            out["probe"] = {"seed_id": iid, "hits": hits}
-        else:
-            out["probe"] = None
+        vm = current_app.extensions.get("vec_model")
+        out["model"]["ok"] = vm is not None
+        out["model"]["name"] = current_app.config.get("EMBED_MODEL")
+        out["model"]["dim"]  = jval(getattr(vm, "dim", None))
     except Exception as e:
-        out["probe"] = {"err": repr(e)}
+        out["model"]["err"] = str(e)
+
+    # faiss 信息
+    try:
+        fs = current_app.extensions.get("faiss_store")
+        if fs is not None:
+            out["faiss"]["dim"]        = jval(getattr(fs, "dim", None))
+            out["faiss"]["ntotal"]     = jval(getattr(fs, "ntotal", None) or getattr(fs, "n_total", None))
+            out["faiss"]["metric"]     = jval(getattr(fs, "metric", None) or getattr(fs, "METRIC", None))
+            out["faiss"]["index_path"] = jval(getattr(fs, "index_path", None) or getattr(fs, "path", None)
+                                              or current_app.config.get("FAISS_INDEX_PATH"))
+            out["faiss"]["ok"] = True
+    except Exception as e:
+        out["faiss"]["err"] = str(e)
+
+    # 探针：随便拿一条 embedding 做一次 search
+    try:
+        fs = current_app.extensions.get("faiss_store")
+        if fs is not None:
+            row = db.session.execute(select(Embedding).limit(1)).scalar_one_or_none()
+            if row is not None:
+                vec = np.frombuffer(row.vector_blob, dtype="float32")
+                hits = []
+                if hasattr(fs, "search"):
+                    try:
+                        raw = fs.search(vec, k=5) or []
+                        for h in raw:
+                            if isinstance(h, (list, tuple)) and len(h) >= 2:
+                                hits.append([int(h[0]), float(h[1])])
+                            else:
+                                # 只有 id 的情况
+                                hits.append([int(h), None])
+                    except Exception as e:
+                        out["probe"] = {"seed_id": int(row.image_id), "err": str(e)}
+                out["probe"] = out.get("probe") or {"seed_id": int(row.image_id), "hits": hits}
+            else:
+                out["probe"] = {"seed_id": None, "hits": []}
+    except Exception as e:
+        out["probe"] = {"err": str(e)}
 
     return jsonify(out)
+
 
 @bp.get("/api/search/_reload")
 def reload_index():
