@@ -10,6 +10,7 @@ db = SQLAlchemy()
 jwt = JWTManager()
 
 
+
 def create_app(light: bool = False):
     app = Flask(__name__)
 
@@ -165,7 +166,7 @@ def create_app(light: bool = False):
     def image_detail(image_id: int):
         # 直接返回静态文件，页面内用 JS 从 URL 里解析 id 去调 API
         return current_app.send_static_file("image.html")"""
-    @app.route("/api/images/<int:id>/view")
+    """@app.route("/api/images/<int:id>/view")
     def view_image(id):
         img = Image.query.get(id)
         if not img:
@@ -178,7 +179,18 @@ def create_app(light: bool = False):
         if not os.path.exists(real_path):
             return jsonify({"error": "file not found", "path": real_path}), 404
 
-        return send_file(real_path)
+        return send_file(real_path)"""
+    @app.get("/api/images/<int:image_id>/view")
+    def view_image(image_id: int):
+        img = Image.query.get_or_404(image_id)
+        path = _resolve_image_path(img)
+        if not path:
+            return jsonify({"error": "file_not_found",
+                            "id": image_id,
+                            "db_path": img.path,
+                            "try": _image_path_from_sha(img.sha256)}), 404
+        return send_file(path, mimetype=img.mime or "image/jpeg")
+
     
     from flask import send_from_directory
 
@@ -195,7 +207,26 @@ def create_app(light: bool = False):
             return render_template("404.html"), 404
         return render_template("image.html", image=image)
 
-    
+    @app.get("/api/images/<int:image_id>/thumb")
+    def view_thumb(image_id: int):
+        img = Image.query.get_or_404(image_id)
+        tpath = _resolve_thumb_path(img)
+        if not tpath:
+            return jsonify({"error": "thumb_not_found",
+                            "id": image_id,
+                            "try": _thumb_path_from_sha(img.sha256)}), 404
+        return send_file(tpath, mimetype="image/jpeg")
+
+    @app.get("/_repair_paths")
+    def repair_paths():
+        fixed = missing = 0
+        for img in Image.query:   # 大量时可分页
+            p = _resolve_image_path(img)
+            if p: fixed += 1
+            else: missing += 1
+        db.session.commit()
+        return jsonify({"fixed": fixed, "missing": missing})
+
     # ----- Static home -----
     # ---------- Static home ----------
     @app.get("/")
