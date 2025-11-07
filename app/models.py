@@ -1,29 +1,24 @@
-from . import db
+# app/models.py
+from __future__ import annotations
+
 from datetime import datetime
-
-# ---------- Users ----------
-
-class User(db.Model):
-    __tablename__ = "user"  # keep original name to avoid migration
-    id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(255), unique=True, nullable=False, index=True)
-    password_hash = db.Column(db.String(255), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-
-    def __repr__(self) -> str:
-        return f"<User id={self.id} email={self.email!r}>"
+from . import db
 
 
-# ---------- Images & metadata ----------
+# NOTE:
+# Users are now stored in a separate database/bind (see app/models_user.py).
+# This file only contains the image-side models that live in the primary DB.
+
 
 class Image(db.Model):
     """
-    Core image row. We keep __tablename__ = 'image' for backward compatibility.
+    Core image record.
+    Keep __tablename__ = 'image' for backward compatibility with existing data.
     """
     __tablename__ = "image"
 
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, nullable=True, index=True)
+    user_id = db.Column(db.Integer, nullable=True, index=True)  # optional owner in primary DB
 
     # content identity & storage
     sha256 = db.Column(db.String(64), unique=True, index=True, nullable=False)
@@ -64,9 +59,6 @@ class Image(db.Model):
         return f"<Image id={self.id} sha={self.sha256[:8]} cat={cat}>"
 
     def to_dict(self) -> dict:
-        """
-        Lightweight dict for API responses.
-        """
         return {
             "id": self.id,
             "user_id": self.user_id,
@@ -82,17 +74,18 @@ class Image(db.Model):
         }
 
 
-# Composite index to speed up gallery pagination by category + id order
-# (works for both asc/desc with proper query plan)
+# Composite index to help gallery pagination by category + id
 db.Index("idx_image_category_id", Image.category, Image.id)
 
 
 class Embedding(db.Model):
     __tablename__ = "embedding"
+
     image_id = db.Column(db.Integer, db.ForeignKey("image.id"), primary_key=True)
     model_name = db.Column(db.String(128), nullable=False)
     dim = db.Column(db.Integer, nullable=False)
-    vector_blob = db.Column(db.LargeBinary, nullable=False)  # typically float32 bytes
+    # Persist normalized float32 vector; stored as raw bytes
+    vector_blob = db.Column(db.LargeBinary, nullable=False)
 
     def __repr__(self) -> str:
         return f"<Embedding image_id={self.image_id} dim={self.dim} model={self.model_name}>"
@@ -100,6 +93,7 @@ class Embedding(db.Model):
 
 class OcrText(db.Model):
     __tablename__ = "ocr_text"
+
     image_id = db.Column(db.Integer, db.ForeignKey("image.id"), primary_key=True)
     text = db.Column(db.Text, nullable=True)
 
@@ -107,10 +101,9 @@ class OcrText(db.Model):
         return f"<OcrText image_id={self.image_id} len={len(self.text or '')}>"
 
 
-# ---------- Auditing ----------
-
 class AuditLog(db.Model):
     __tablename__ = "audit_log"
+
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, index=True)
     action = db.Column(db.String(64))

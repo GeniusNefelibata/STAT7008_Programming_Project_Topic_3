@@ -1,8 +1,6 @@
 # app/faiss_store.py
 from __future__ import annotations
 import os
-from typing import List, Tuple, Optional
-
 import numpy as np
 
 try:
@@ -12,75 +10,96 @@ except Exception as e:
 
 class FaissStore:
     """
-    Minimal FAISS wrapper.
-    - Uses Inner Product (IP) for cosine-like search (expects unit-normalized vectors).
-    - Exposes .open(path) /.load(path) to (re)load an index file.
-    - Provides .search(vec, k) -> List[(id, score)]  (score in FAISS's metric space).
+    Simple persistent FAISS wrapper (Inner-Product / cosine).
+    - dim: embedding dim
+    - index_path: file path to store/load the index
+    - autosave: if True, save() after each add()
+    API:
+      - add(ids: np.ndarray[int64], vecs: np.ndarray[float32])
+      - search(qvec: np.ndarray[float32], k: int) -> list[(id, score)]
+      - save() / write_index()        # write to disk
+      - load()                         # load from disk if exists
+      - ntotal() -> int
     """
-
-    def __init__(self, dim: int, index_path: Optional[str] = None):
+    def __init__(self, dim: int, index_path: str, metric: str = "IP"):
         self.dim = int(dim)
-        self.index_path = index_path
-        self.index = None  # type: Optional[faiss.Index]
-        self.metric = "IP"  # for diagnostics only
-        self.ntotal = 0
+        self.index_path = os.path.abspath(index_path)
+        self.metric = metric.upper()  # "IP" or "L2"
+        self._index = None  # faiss.Index
+        self._idmap = None  # faiss.IndexIDMap2
 
-        if index_path and os.path.exists(index_path):
-            self.open(index_path)
+        os.makedirs(os.path.dirname(self.index_path), exist_ok=True)
+        self._load_if_exists()
 
-    # aliases for compatibility
-    def load(self, path: str) -> None:
-        self.open(path)
+    # 兼容旧名字
+    def write_index(self):  # alias
+        return self.save()
 
-    def open(self, path: str) -> None:
+    def save(self):
+        if self._idmap is None:
+            return
+        faiss.write_index(self._idmap, self.index_path)
+
+    def load(self):
         if faiss is None:
-            raise RuntimeError("faiss not installed (pip install faiss-cpu)")
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"FAISS index not found: {path}")
+            return
+        if self.index_path and os.path.exists(self.index_path):
+            idx = faiss.read_index(self.index_path)
+            # 统一成 IDMap
+            if not isinstance(idx, faiss.IndexIDMap):
+                idx = faiss.IndexIDMap(idx)
+            self.index = idx
 
-        idx = faiss.read_index(path)
-        # Optional: ensure it's an IndexIDMap (so ids == your image ids)
-        # If your file is already an IDMap, this is a no-op.
-        if not isinstance(idx, faiss.IndexIDMap):
-            # keep as-is; many pipelines already save an IDMap
-            pass
+    @property
+    def ntotal(self) -> int:
+        if self._idmap is None:
+            return 0
+        return int(self._idmap.ntotal)
 
-        # Store & stats
-        self.index = idx
-        try:
-            self.ntotal = int(getattr(idx, "ntotal", 0))
-        except Exception:
-            self.ntotal = 0
-        self.index_path = path
-
-    def is_ready(self) -> bool:
-        return self.index is not None and self.ntotal > 0
-
-    def _ensure_ready(self) -> None:
-        if not self.index:
-            raise RuntimeError("FAISS index is not loaded. Call .open(index_path) first.")
-
-    @staticmethod
-    def _as_row(v: np.ndarray) -> np.ndarray:
-        v = np.asarray(v, dtype="float32").reshape(-1).astype("float32")
-        return v.reshape(1, -1)
-
-    def search(self, vec, k: int = 12) -> List[Tuple[int, float]]:
+    def add(self, ids: np.ndarray, vecs: np.ndarray):
         """
-        vec: 1-D embedding (float32), already unit-normalized if using cosine/IP.
-        returns: [(id, score)]  -- score is FAISS distance/similarity (IP here).
+        追加：不会清空已有索引。
+        ids: int64 shape (n,)
+        vecs: float32 shape (n, dim) —— 已归一化（若用 IP 作余弦）
         """
-        self._ensure_ready()
-        q = self._as_row(vec)
+        self._ensure_loaded()
+        ids = np.asarray(ids, dtype=np.int64).reshape(-1)
+        vecs = np.asarray(vecs, dtype=np.float32).reshape(-1, self.dim)
+        if ids.shape[0] != vecs.shape[0]:
+            raise ValueError("ids and vecs must have same length")
 
-        # Some indices need normalization if you want cosine; assume caller already did it.
-        distances, ids = self.index.search(q, k)  # shapes: (1,k), (1,k)
-        ids = ids[0]
-        distances = distances[0]
+        # 追加
+        self._idmap.add_with_ids(vecs, ids)
+        # 立刻持久化，避免进程崩溃丢增量
+        self.save()
 
-        out: List[Tuple[int, float]] = []
-        for i, d in zip(ids, distances):
-            if int(i) < 0:
-                continue  # FAISS uses -1 for empty
-            out.append((int(i), float(d)))
-        return out
+    def search(self, qvec: np.ndarray, k: int = 12):
+        self._ensure_loaded()
+        if self.ntotal == 0:
+            return []
+        q = np.asarray(qvec, dtype=np.float32).reshape(1, self.dim)
+        D, I = self._idmap.search(q, k)
+        # 返回 [(id, score)]
+        return [(int(i), float(d)) for i, d in zip(I[0], D[0]) if i != -1]
+
+    def _new_base_index(self):
+        if self.metric == "IP":
+            base = faiss.IndexFlatIP(self.dim)
+        else:
+            base = faiss.IndexFlatL2(self.dim)
+        return base
+
+    def _ensure_loaded(self):
+        if self._idmap is None:
+            self._idmap = faiss.IndexIDMap2(self._new_base_index())
+
+    def _load_if_exists(self):
+        if os.path.isfile(self.index_path):
+            idx = faiss.read_index(self.index_path)
+            # 兼容“裸 base index”或已是 IDMap 的两种情况
+            if isinstance(idx, faiss.IndexIDMap2):
+                self._idmap = idx
+            else:
+                self._idmap = faiss.IndexIDMap2(idx)
+        else:
+            self._idmap = faiss.IndexIDMap2(self._new_base_index())
