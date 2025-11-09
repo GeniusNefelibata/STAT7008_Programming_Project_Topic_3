@@ -311,7 +311,7 @@ async function downloadById(id, mimeHint){
 }
 
 /* cards */
-function card(item){
+/*function card(item){
   const id = item.image_id ?? item.id;
   const src = api(`/api/images/${id}/view`);
   const mime = item.mime || ''; // browse 接口会带，搜索不一定带
@@ -326,7 +326,29 @@ function card(item){
       </div>
     </div>
   </div>`;
+}*/
+function card(item){
+  const id  = item.image_id ?? item.id;
+  const dl  = api(`/api/images/${id}/download`);
+  return `<div class="card">
+    <a class="thumb-link" href="/image/${id}" title="View detail">
+      <img class="thumb"
+           src="${api(`/api/images/${id}/thumb`)}"
+           onerror="this.onerror=null;this.src='${api(`/api/images/${id}/view`)}'"
+           loading="lazy" alt="img-${id}">
+    </a>
+    <div class="body">
+      <div class="meta"><span>ID #${id}</span>${scoreBadge(item.score)}</div>
+      <div class="links">
+        <a href="${dl}">download</a>
+        <a href="/image/${id}">similar</a>
+        <a href="#" class="danger" onclick="deleteImage(${id});return false;">delete</a>
+      </div>
+    </div>
+  </div>`;
 }
+
+
 
 /* state + sorting */
 let currentList=[], currentIndex=-1;
