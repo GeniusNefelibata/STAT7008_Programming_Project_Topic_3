@@ -33,7 +33,7 @@
     .logo{width:28px;height:28px; display:grid; place-items:center; border-radius:8px; background:linear-gradient(135deg, var(--accent), #4c78ff); box-shadow:0 6px 20px rgba(76,120,255,.35)}
     .brand small{color:var(--muted); font-weight:500}
     .spacer{flex:1}
-    .pill{padding:6px 10px; border:1px solid var(--border); border-radius:999px; color:var(--muted); background:linear-gradient(180deg, #0b1119, #0e151f)}
+    .pill{padding:6px 10px; border:1px solid var(--border); border-radius:999px; color:var(--muted); background:linear-gradient(180deg, #0b1119, #0e151f); text-decoration:none}
 
     .hero{max-width:var(--w); margin:24px auto 0; padding:0 24px 10px; text-align:center}
     .hero h1{margin:8px 0 4px; font-size:24px}
@@ -106,14 +106,14 @@
     .rowi .bar{height:6px}
     .rowi small{color:var(--muted)}
     .bar.ind>span{width:40%; background:repeating-linear-gradient(45deg,#4c78ff,#4c78ff 10px,#6aa9ff 10px,#6aa9ff 20px); animation:ind-move 1s linear infinite}
-    @keyframes ind-move{from{transform:translateX(-40%)} to{transform:translateX(140%)}}
+    @keyframes ind-move{from{transform:translateX(-40%)} to{transform:translateX(140%)}
 
-    .toast{position:fixed; right:22px; bottom:22px; background:#0e1722; border:1px solid var(--border); padding:10px 14px; border-radius:10px; color:var(--fg); opacity:0; transform:translateY(8px); transition:all .25s}
-    .toast.show{opacity:1; transform:translateY(0)}
-    .hint{color:var(--muted); font-size:12px}
+    }
 
-    .results-wrap{display:flex; flex-direction:column; max-height:calc(100vh - var(--reserve));}
-    .results-scroll{flex:1 1 auto; min-height:0; overflow:auto; padding-right:6px; padding-bottom:10px;}
+    /* 结果面板滚动修复 */
+    .results-wrap{display:flex; flex-direction:column; height:calc(100vh - var(--reserve));}
+    .panelBox.results-wrap{min-height:0;}
+    .results-scroll{flex:1 1 auto; min-height:0; overflow:auto; padding-right:6px; padding-bottom:10px; -webkit-overflow-scrolling:touch;}
     .result-footer{position:sticky; bottom:0; background:linear-gradient(180deg,#0c121a,#0e141d); border-top:1px solid #1f2a3a; display:flex; justify-content:center; align-items:center; padding:10px 0 8px; z-index:1;}
     .view-more-btn{padding:9px 12px; border-radius:10px; border:1px solid #2a3f5a; background:linear-gradient(180deg,#18314c,#142a40); color:#e6edf3; cursor:pointer;}
     .view-more-btn:hover{ filter:brightness(1.07); }
@@ -128,6 +128,8 @@
     </div>
     <div class="spacer"></div>
     <div class="pill">Flask API on same origin</div>
+    <!-- 右上角 Analytics 入口 -->
+    <a href="/analytics" class="pill" aria-label="Analytics" style="margin-left:8px">Analytics</a>
   </div>
 </header>
 
@@ -226,7 +228,7 @@
       </div>
     </section>
 
-    <!-- Lightbox -->
+    <!-- Lightbox（保留以备后用） -->
     <div class="lightbox" id="lightbox" aria-modal="true" role="dialog">
       <div class="lb-inner">
         <button class="lb-btn lb-close" id="lbClose" title="Close (Esc)">✕</button>
@@ -278,7 +280,7 @@ function closeModal(){ $('#modal').classList.remove('show'); }
 $('#modalOk').addEventListener('click', closeModal);
 $('#modal').addEventListener('click', e=>{ if(e.target.id==='modal') closeModal(); });
 
-/* ===== Download helpers (fix no-extension issue) ===== */
+/* ===== 下载：Blob + 自动扩展名 ===== */
 function mimeToExt(mime){
   if(!mime) return '';
   const m = mime.toLowerCase();
@@ -290,7 +292,6 @@ function mimeToExt(mime){
   if(m.includes('tiff')) return 'tif';
   return '';
 }
-
 async function downloadById(id, mimeHint){
   try{
     const url = api(`/api/images/${id}/download`);
@@ -310,26 +311,10 @@ async function downloadById(id, mimeHint){
   }
 }
 
-/* cards */
-/*function card(item){
-  const id = item.image_id ?? item.id;
-  const src = api(`/api/images/${id}/view`);
-  const mime = item.mime || ''; // browse 接口会带，搜索不一定带
-  return `<div class="card">
-    <img class="thumb" src="${src}" loading="lazy" alt="img-${id}" onclick="openLightboxById(${id})"/>
-    <div class="body">
-      <div class="meta"><span>ID #${id}</span>${scoreBadge(item.score)}</div>
-      <div class="links">
-        <a href="javascript:void(0)" onclick="downloadById(${id}, '${mime}')">download</a>
-        <a href="#" onclick="similar(${id});return false;">similar</a>
-        <a href="#" class="danger" onclick="deleteImage(${id});return false;">delete</a>
-      </div>
-    </div>
-  </div>`;
-}*/
+/* 卡片：图片与“similar”都跳详情；下载走 Blob */
 function card(item){
-  const id  = item.image_id ?? item.id;
-  const dl  = api(`/api/images/${id}/download`);
+  const id   = item.image_id ?? item.id;
+  const mime = item.mime || '';
   return `<div class="card">
     <a class="thumb-link" href="/image/${id}" title="View detail">
       <img class="thumb"
@@ -340,15 +325,13 @@ function card(item){
     <div class="body">
       <div class="meta"><span>ID #${id}</span>${scoreBadge(item.score)}</div>
       <div class="links">
-        <a href="${dl}">download</a>
+        <a href="javascript:void(0)" onclick="downloadById(${id}, '${mime}')">download</a>
         <a href="/image/${id}">similar</a>
         <a href="#" class="danger" onclick="deleteImage(${id});return false;">delete</a>
       </div>
     </div>
   </div>`;
 }
-
-
 
 /* state + sorting */
 let currentList=[], currentIndex=-1;
@@ -393,7 +376,7 @@ async function deleteImage(id){
   }
 }
 
-/* lightbox */
+/* Lightbox（保留以备后用） */
 function openLightbox(idx){
   if(idx<0||idx>=currentList.length) return;
   currentIndex=idx;
@@ -546,7 +529,7 @@ document.getElementById('btnFindId').onclick = ()=>{
   findByIdExact(id);
 };
 
-/* keep similarity search for links on cards */
+/* 相似（保留该函数；但卡片上的 similar 已改为跳 /image/<id>） */
 async function similar(id){
   const r = await fetch(api(`/api/images/${id}/similar?k=18`));
   const j = await r.json();

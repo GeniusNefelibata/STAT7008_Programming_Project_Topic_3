@@ -1,255 +1,354 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Image Drive · Analytics</title>
-<style>
-  :root{
-    --bg:#0b0f14; --panel:#121822; --card:#0f1520; --border:#1f2a3a;
-    --fg:#e6edf3; --muted:#99a7b4; --accent:#6aa9ff; --ok:#a3ffcb; --danger:#ff6a6a;
-    --radius:16px; --shadow:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.03);
-    --w:1280px;
-  }
-  *{box-sizing:border-box}
-  html,body{height:100%}
-  body{
-    margin:0; color:var(--fg);
-    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Microsoft Yahei","PingFang SC","Noto Sans SC", sans-serif;
-    background:
-      radial-gradient(1200px 800px at 10% -10%, #12243a 0%, transparent 60%),
-      radial-gradient(1000px 600px at 110% 10%, #1a2f4a 0%, transparent 60%),
-      var(--bg);
-  }
-  header{position:sticky; top:0; z-index:5; backdrop-filter: blur(8px);
-    background:linear-gradient(180deg, rgba(10,14,20,.9), rgba(10,14,20,.65));
-    border-bottom:1px solid var(--border);
-  }
-  .bar{max-width:var(--w); margin:0 auto; padding:16px 20px; display:flex; align-items:center; gap:14px}
-  .brand{display:flex; align-items:center; gap:10px; font-weight:700}
-  .logo{width:28px;height:28px;display:grid;place-items:center;border-radius:8px;background:linear-gradient(135deg,var(--accent),#4c78ff);box-shadow:0 6px 20px rgba(76,120,255,.35)}
-  .spacer{flex:1}
-  a.link{color:var(--accent);text-decoration:none}
-  .container{max-width:var(--w); margin:18px auto 28px; padding:0 20px}
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Image Drive · Analytics</title>
+  <style>
+    :root{
+      --bg:#0b0f14; --panel:#121822; --card:#0f1520; --border:#1f2a3a;
+      --fg:#e6edf3; --muted:#99a7b4; --accent:#6aa9ff; --ok:#a3ffcb;
+      --radius:16px; --shadow:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.03);
+      --w:1280px;
+    }
+    *{box-sizing:border-box}
+    html,body{min-height:100%; overflow:auto; -webkit-overflow-scrolling:touch;}
+    body{
+      margin:0; color:var(--fg); background:
+        radial-gradient(1200px 800px at 10% -10%, #12243a 0%, transparent 60%),
+        radial-gradient(1000px 600px at 110% 10%, #1a2f4a 0%, transparent 60%),
+        var(--bg);
+      font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Microsoft Yahei","PingFang SC","Noto Sans SC",sans-serif;
+    }
+    header{position:sticky; top:0; z-index:10; backdrop-filter: blur(8px);
+      background:linear-gradient(180deg, rgba(10,14,20,.9), rgba(10,14,20,.65));
+      border-bottom:1px solid var(--border);
+    }
+    .bar{max-width:var(--w); margin:0 auto; padding:14px 18px; display:flex; align-items:center; gap:12px}
+    .brand{display:flex; align-items:center; gap:10px; font-weight:700}
+    .logo{width:28px;height:28px; display:grid; place-items:center; border-radius:8px; background:linear-gradient(135deg, var(--accent), #4c78ff); box-shadow:0 6px 20px rgba(76,120,255,.35)}
+    .spacer{flex:1}
+    a.link {color:var(--accent); text-decoration:none}
+    .pill{padding:8px 12px; border:1px solid var(--border); border-radius:999px; color:var(--muted); background:linear-gradient(180deg, #0b1119, #0e151f); cursor:pointer}
+    .container{max-width:var(--w); margin:16px auto 40px; padding:0 18px 30px;}
+    .controls{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:12px}
+    select,input[type="text"]{padding:9px 10px; border-radius:10px; border:1px solid var(--border); background:#0b1119; color:var(--fg); width:190px}
+    label{color:var(--muted); font-size:13px; display:flex; align-items:center; gap:6px}
+    .btn{padding:9px 12px; border-radius:10px; border:1px solid #2a3f5a; background:linear-gradient(180deg,#18314c,#142a40); color:var(--fg); cursor:pointer}
 
-  .grid2{display:grid; grid-template-columns: 1fr 1fr; gap:16px}
-  @media (max-width:1100px){ .grid2{grid-template-columns:1fr} }
+    .grid{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+    @media (max-width:1100px){ .grid{grid-template-columns:1fr} }
 
-  .card{background:linear-gradient(180deg,#0f1520,#0b1119); border:1px solid var(--border);
-        border-radius:var(--radius); box-shadow:var(--shadow); padding:16px}
-  .card h3{margin:0 0 10px}
-  .meta{color:var(--muted);font-size:13px}
+    .card{background:linear-gradient(180deg, #0f1520, #0b1119); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; min-height:300px}
+    .card h3{margin:0; padding:12px 14px; border-bottom:1px solid var(--border); font-size:16px}
+    .canvas-wrap{position:relative; padding:8px 10px 14px}
+    canvas{width:100%; height:320px; display:block}
+    .legend{display:flex; gap:12px; padding:0 14px 10px; color:var(--muted); font-size:12px}
 
-  .kpis{display:grid; grid-template-columns: repeat(4,1fr); gap:12px}
-  @media (max-width:900px){.kpis{grid-template-columns: repeat(2,1fr)}}
-  .kpi{padding:14px;border:1px solid var(--border); border-radius:14px; background:linear-gradient(180deg,#0b1119,#0e151f)}
-  .kpi .label{color:var(--muted);font-size:12px}
-  .kpi .value{font-size:22px;font-weight:700;margin-top:6px}
+    /* 新增：饼图的详细图例列表 */
+    .legend-list{display:flex; flex-wrap:wrap; gap:10px 16px; padding:0 14px 14px}
+    .legend-item{display:inline-flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); background:#0b1119; border:1px solid var(--border); padding:6px 8px; border-radius:999px}
+    .legend-dot{width:10px; height:10px; border-radius:50%; flex:0 0 10px; border:1px solid rgba(255,255,255,.25)}
 
-  .row{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
-  .btn{padding:9px 12px; border-radius:10px; border:1px solid #2a3f5a; background:linear-gradient(180deg,#18314c,#142a40); color:var(--fg); cursor:pointer}
-  .btn:hover{filter:brightness(1.07)}
-  .hint{color:var(--muted); font-size:12px}
-
-  /* table */
-  table{width:100%; border-collapse: collapse; margin-top:8px; font-size:14px}
-  th, td{padding:10px 8px; border-bottom:1px solid var(--border); text-align:left}
-  th{color:var(--muted); font-weight:600}
-  tr:hover td{background:rgba(255,255,255,.02)}
-  .num{text-align:right}
-
-  /* bar chart (canvas) */
-  canvas{width:100%; height:280px; display:block; background:#0c1118; border:1px solid var(--border); border-radius:12px}
-
-  /* samples grid */
-  .grid{display:grid; grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); gap:10px; margin-top:10px}
-  .thumb{width:100%; aspect-ratio:4/3; object-fit:cover; border:1px solid var(--border); border-radius:10px; background:#0b1119}
-</style>
+    .tooltip{position:fixed; pointer-events:none; background:#101621; border:1px solid #24334a; padding:6px 8px; border-radius:8px; color:#e6edf3; font-size:12px; box-shadow:0 10px 30px rgba(0,0,0,.35); opacity:0; transform:translateY(6px); transition:opacity .12s, transform .12s}
+    .empty{color:var(--muted); font-size:13px; padding:14px}
+  </style>
 </head>
 <body>
 <header>
   <div class="bar">
-    <div class="brand"><div class="logo">📊</div><div>Image Drive <small class="meta">· Analytics</small></div></div>
+    <div class="brand">
+      <div class="logo">📈</div>
+      <div>Image Drive <small>· Analytics</small></div>
+    </div>
     <div class="spacer"></div>
-    <a class="link" href="/">← Back to Studio</a>
+    <a href="/" class="link">← Back to Studio</a>
   </div>
 </header>
 
 <div class="container">
-
-  <!-- KPIs -->
-  <section class="card">
-    <h3>Overview</h3>
-    <div class="kpis" id="kpis">
-      <div class="kpi"><div class="label">Images</div><div class="value" id="k_images">-</div></div>
-      <div class="kpi"><div class="label">Total Size (MB)</div><div class="value" id="k_mb">-</div></div>
-      <div class="kpi"><div class="label">Avg WxH (px)</div><div class="value" id="k_dims">-</div></div>
-      <div class="kpi"><div class="label">Sizes p50 / p90 / p99 (KB)</div><div class="value" id="k_pct">-</div></div>
-    </div>
-    <div class="meta" style="margin-top:8px" id="k_note"></div>
-  </section>
-
-  <div class="grid2" style="margin-top:16px">
-
-    <!-- 类别分布 -->
-    <section class="card">
-      <h3>Category Distribution</h3>
-      <div class="row" style="justify-content:space-between">
-        <div class="hint">Data from GET /api/analytics/summary</div>
-        <div class="row">
-          <button class="btn" id="btnExport">Export CSV</button>
-          <button class="btn" id="btnRefresh">Refresh</button>
-        </div>
-      </div>
-      <canvas id="bar"></canvas>
-      <table id="tbl">
-        <thead><tr><th>Category</th><th class="num">Count</th><th class="num">% of total</th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <div class="hint">Tip: click a row to preview samples below.</div>
-    </section>
-
-    <!-- 类别样例 -->
-    <section class="card">
-      <h3>Samples <span class="meta" id="sampleTitle"></span></h3>
-      <div id="samples" class="grid"></div>
-    </section>
+  <div class="controls">
+    <label>Window (days)
+      <select id="win">
+        <option>7</option><option>14</option><option>30</option><option selected>60</option><option>90</option><option>180</option>
+      </select>
+    </label>
+    <label class="checkbox"><input type="checkbox" id="compact" checked/> compact empty weeks</label>
+    <label class="checkbox"><input type="checkbox" id="cum" checked/> cumulative line</label>
+    <label>Time zone <input id="tz" type="text" placeholder="e.g. +08:00 (optional)"/></label>
+    <button class="btn" id="refresh">Refresh</button>
+    <button class="btn" id="dlcsv">Download CSV</button>
+    <button class="btn" id="dljson">Download JSON</button>
   </div>
 
+  <div class="grid">
+    <!-- Daily -->
+    <div class="card">
+      <h3>Uploads by Day</h3>
+      <div class="canvas-wrap"><canvas id="cDay"></canvas><div id="emptyDay" class="empty" style="display:none">No data</div></div>
+      <div class="legend"><span>Bars: daily uploads</span><span id="legendCum" style="display:none">• Line: cumulative (same window)</span></div>
+    </div>
+
+    <!-- Weekly -->
+    <div class="card">
+      <h3>Uploads by Week</h3>
+      <div class="canvas-wrap"><canvas id="cWeek"></canvas><div id="emptyWeek" class="empty" style="display:none">No data</div></div>
+      <div class="legend"><span>Bars: weekly uploads</span></div>
+    </div>
+
+    <!-- Categories + legend -->
+    <div class="card">
+      <h3>Categories</h3>
+      <div class="canvas-wrap"><canvas id="cCat"></canvas><div id="emptyCat" class="empty" style="display:none">No data</div></div>
+      <div id="legendCat" class="legend-list"></div>
+    </div>
+
+    <!-- MIME + legend -->
+    <div class="card">
+      <h3>MIME Types</h3>
+      <div class="canvas-wrap"><canvas id="cMime"></canvas><div id="emptyMime" class="empty" style="display:none">No data</div></div>
+      <div id="legendMime" class="legend-list"></div>
+    </div>
+  </div>
 </div>
 
+<div id="tip" class="tooltip"></div>
+
 <script>
-const api = p => (p && p.startsWith('http')) ? p : `${location.origin}${p}`;
+const api = p => `${location.origin}${p}`;
+const tip = document.getElementById('tip');
 
-async function fetchSummary(){
-  const r = await fetch(api('/api/analytics/summary'));
-  if(!r.ok) throw new Error('summary failed');
-  return r.json();
-}
-async function fetchBreakdown(){
-  const r = await fetch(api('/api/analytics/category_breakdown'));
-  if(!r.ok) throw new Error('breakdown failed');
-  return r.json();
-}
-function fmt(n, d=0){ if(n==null) return '-'; return Number(n).toLocaleString(undefined,{maximumFractionDigits:d, minimumFractionDigits:d}); }
+/* ---------- tiny chart helpers (no CDN) ---------- */
+function makeCtx(canvas){ const dpr = Math.max(1, devicePixelRatio||1); const rect = canvas.getBoundingClientRect(); canvas.width = Math.round(rect.width*dpr); canvas.height = Math.round(320*dpr); const ctx = canvas.getContext('2d'); ctx.scale(dpr,dpr); return ctx; }
 
-function drawBar(canvas, items, total){
+function barChart(canvas, data, opts={}){
+  const ctx = makeCtx(canvas);
+  const W = canvas.getBoundingClientRect().width, H = 300;
+  const left=40, right=10, top=10, bottom=28;
+  const innerW=W-left-right, innerH=H-top-bottom;
+
+  const vals = data.map(d=>d.v);
+  const max = Math.max(1, Math.max(...vals, 0));
+  const bw = Math.max(2, innerW / Math.max(1,data.length));
+  const color = opts.color || '#6aa9ff';
+  const labels = data.map(d=>d.k);
+
+  ctx.clearRect(0,0,W,H);
+  ctx.strokeStyle='#1f2a3a'; ctx.lineWidth=1;
+  ctx.beginPath();
+  ctx.moveTo(left, top); ctx.lineTo(left, H-bottom); ctx.lineTo(W-right, H-bottom);
+  ctx.stroke();
+
+  const targetHeights = data.map(d=> (d.v/max)*innerH );
+  let t = 0;
+  function draw(){
+    t = Math.min(1, t + 0.08);
+    ctx.fillStyle = color;
+    for(let i=0;i<data.length;i++){
+      const bh = targetHeights[i] * t;
+      const x = left + i*bw + 1;
+      const y = H-bottom - bh;
+      ctx.fillRect(x, y, Math.max(1,bw-2), bh);
+    }
+    ctx.fillStyle='#99a7b4'; ctx.font='12px system-ui';
+    const step = Math.ceil(data.length/8);
+    for(let i=0;i<data.length;i+=step){
+      const x = left + i*bw + bw/2;
+      const txt = labels[i];
+      ctx.save(); ctx.translate(x, H-bottom+14); ctx.rotate(-Math.PI/4);
+      ctx.fillText(txt, 0, 0); ctx.restore();
+    }
+    if(t<1) requestAnimationFrame(draw);
+  }
+  draw();
+
+  canvas.onmousemove = (e)=>{
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left - left;
+    if(x<0 || x>innerW){ tip.style.opacity=0; return; }
+    const i = Math.floor(x / bw);
+    if(i<0 || i>=data.length){ tip.style.opacity=0; return; }
+    tip.innerHTML = `<b>${labels[i]}</b><br/>${data[i].v}`;
+    tip.style.opacity=1;
+    tip.style.transform='translateY(0)';
+    tip.style.left = (e.clientX+12)+'px';
+    tip.style.top = (e.clientY+12)+'px';
+  };
+  canvas.onmouseleave = ()=>{ tip.style.opacity=0; tip.style.transform='translateY(6px)'; };
+}
+
+function lineChartOverlay(canvas, data, opts={}){
   const ctx = canvas.getContext('2d');
-  const W = canvas.width = canvas.clientWidth * devicePixelRatio;
-  const H = canvas.height = canvas.clientHeight * devicePixelRatio;
-  ctx.scale(devicePixelRatio, devicePixelRatio);
-  ctx.clearRect(0,0,canvas.clientWidth, canvas.clientHeight);
+  const W = canvas.getBoundingClientRect().width, H = 300;
+  const left=40, right=10, top=10, bottom=28;
+  const innerW=W-left-right, innerH=H-top-bottom;
 
-  // padding
-  const pad = {l:40, r:10, t:10, b:24};
-  const w = canvas.clientWidth - pad.l - pad.r;
-  const h = canvas.clientHeight - pad.t - pad.b;
+  const vals = data.map(d=>d.v);
+  const max = Math.max(1, Math.max(...vals, 0));
+  const step = innerW / Math.max(1, data.length-1);
+  ctx.strokeStyle = opts.color || '#a3ffcb';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for(let i=0;i<data.length;i++){
+    const x = left + i*step;
+    const y = H-bottom - (data[i].v/max)*innerH;
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+}
 
-  const maxV = Math.max(1, ...items.map(x=>x.count));
-  const bw = Math.max(14, w / items.length * 0.75);
-  const gap = (w - bw * items.length) / Math.max(1, items.length-1);
+function pieChart(canvas, rows){
+  const ctx = makeCtx(canvas);
+  const W = canvas.getBoundingClientRect().width, H = 300;
+  const cx=W/2, cy=H/2, r=Math.min(W,H)/2 - 20;
+  const total = rows.reduce((a,b)=>a+b.v,0) || 1;
+  let a0=-Math.PI/2;
+  const colors = rows.map((_,i)=>`hsl(${(i*57)%360} 70% 55%)`);
 
-  // axes
-  const baseX = pad.l, baseY = pad.t + h;
-  ctx.strokeStyle = '#203046'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(baseX, pad.t); ctx.lineTo(baseX, baseY); ctx.lineTo(baseX+w, baseY); ctx.stroke();
-
-  // bars
-  items.forEach((it, i)=>{
-    const x = baseX + i*(bw+gap);
-    const y = baseY - (it.count / maxV) * h;
-    // gradient
-    const g = ctx.createLinearGradient(0,y,0,baseY);
-    g.addColorStop(0,'#6aa9ff'); g.addColorStop(1,'#4c78ff');
-    ctx.fillStyle = g;
-    ctx.fillRect(x, y, bw, baseY-y);
+  ctx.clearRect(0,0,W,H);
+  rows.forEach((row,i)=>{
+    const ang = (row.v/total)*Math.PI*2;
+    ctx.beginPath();
+    ctx.moveTo(cx,cy);
+    ctx.arc(cx,cy,r,a0,a0+ang);
+    ctx.closePath();
+    ctx.fillStyle=colors[i];
+    ctx.fill();
+    a0+=ang;
   });
 
-  // labels (x)
-  ctx.fillStyle = '#99a7b4'; ctx.font = '12px system-ui, -apple-system, Segoe UI';
-  ctx.textAlign = 'center';
-  items.forEach((it, i)=>{
-    const x = baseX + i*(bw+gap) + bw/2;
-    ctx.fillText(it.category.length>10? it.category.slice(0,10)+'…' : it.category, x, baseY+16);
+  canvas.onmousemove=(e)=>{
+    const rect=canvas.getBoundingClientRect();
+    const x=e.clientX-rect.left, y=e.clientY-rect.top;
+    const dx=x-cx, dy=y-cy; const dist=Math.hypot(dx,dy);
+    if(dist>r){ tip.style.opacity=0; return; }
+    let ang=Math.atan2(dy,dx); if(ang< -Math.PI/2) ang+=2*Math.PI;
+    let sweep= -Math.PI/2;
+    let found=-1;
+    for(let i=0;i<rows.length;i++){
+      const a=(rows[i].v/total)*Math.PI*2;
+      if(ang>=sweep && ang<=sweep+a){ found=i; break; }
+      sweep+=a;
+    }
+    if(found>=0){
+      const p=((rows[found].v/total)*100).toFixed(1);
+      tip.innerHTML = `<b>${rows[found].k}</b><br/>${rows[found].v} (${p}%)`;
+      tip.style.opacity=1; tip.style.transform='translateY(0)';
+      tip.style.left=(e.clientX+12)+'px'; tip.style.top=(e.clientY+12)+'px';
+    }else{ tip.style.opacity=0; }
+  };
+  canvas.onmouseleave=()=>{ tip.style.opacity=0; tip.style.transform='translateY(6px)'; };
+
+  // 把颜色返回给调用方用于生成文字图例
+  return colors;
+}
+
+/* ---------- fetch + render ---------- */
+async function loadSummary(){
+  const days = parseInt(document.getElementById('win').value, 10) || 60;
+  const compact = document.getElementById('compact').checked ? 1 : 0;
+  const cum = document.getElementById('cum').checked ? 1 : 0;
+  const tz = (document.getElementById('tz').value || '').trim();
+
+  const qs = new URLSearchParams({ days, compact, with_cum: cum });
+  if(tz) qs.set('tz', tz);
+
+  const resp = await fetch(api(`/api/analytics/summary?${qs.toString()}`));
+  if(!resp.ok){
+    console.error('summary failed', await resp.text());
+    alert('Failed to load analytics summary.');
+    return;
+  }
+  const j = await resp.json();
+  renderAll(j, { cum, days });
+}
+
+function ensureNonEmpty(arr){ return Array.isArray(arr) && arr.length>0; }
+
+function setLegendList(containerId, rows, colors){
+  const el = document.getElementById(containerId);
+  if(!el) return;
+  el.innerHTML = '';
+  if(!ensureNonEmpty(rows)) return;
+  const total = rows.reduce((a,b)=>a+b.v,0) || 1;
+  rows.forEach((r, i)=>{
+    const pct = (r.v/total*100).toFixed(1);
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.innerHTML = `<span class="legend-dot" style="background:${colors[i]}"></span>
+                      <span>${(r.k||'(unknown)').replace(/</g,'&lt;')}</span>
+                      <span>· ${r.v}</span>
+                      <span>· ${pct}%</span>`;
+    el.appendChild(item);
   });
 }
 
-function renderSummary(data){
-  const total = data.totals?.images || 0;
-  document.getElementById('k_images').textContent = fmt(total);
-  document.getElementById('k_mb').textContent = fmt(data.totals?.mb, 2);
-  document.getElementById('k_dims').textContent = `${fmt(data.dimensions?.avg_width,1)} × ${fmt(data.dimensions?.avg_height,1)}`;
-  const p50 = data.sizes_kb?.p50, p90 = data.sizes_kb?.p90, p99 = data.sizes_kb?.p99;
-  document.getElementById('k_pct').textContent = `${fmt(p50,1)} / ${fmt(p90,1)} / ${fmt(p99,1)}`;
-  const note = `Avg size ${fmt(data.sizes_kb?.avg,1)} KB · Categories: ${data.by_category?.length||0}`;
-  document.getElementById('k_note').textContent = note;
+function renderAll(j, opts){
+  const dByDay = (j.by_day||[]).map(o=>({k:o.date, v:o.count, cum:o.cum}));
+  const dByWeek= (j.by_week||[]).map(o=>({k:o.week, v:o.count}));
+  const dCat   = (j.category||[]).map(o=>({k:o.category||'(uncategorized)', v:o.count}));
+  const dMime  = (j.mime||[]).map(o=>({k:o.mime||'(unknown)', v:o.count}));
 
-  // table
-  const tbody = document.querySelector('#tbl tbody');
-  tbody.innerHTML = '';
-  const items = (data.by_category || []).map(x=>({category: x.category, count: x.count}));
-  items.forEach(row=>{
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${row.category}</td><td class="num">${fmt(row.count)}</td><td class="num">${ total? (row.count*100/total).toFixed(1) : '-' }%</td>`;
-    tr.addEventListener('click', ()=> loadSamples(row.category));
-    tbody.appendChild(tr);
-  });
+  // Day
+  const cDay = document.getElementById('cDay');
+  document.getElementById('emptyDay').style.display = ensureNonEmpty(dByDay)?'none':'block';
+  if(ensureNonEmpty(dByDay)){
+    barChart(cDay, dByDay.map(x=>({k:x.k.slice(5), v:x.v})), {color:'#6aa9ff'});
+    if(opts.cum){
+      lineChartOverlay(cDay, dByDay.map(x=>({k:x.k, v:x.cum||0})), {color:'#a3ffcb'});
+      document.getElementById('legendCum').style.display='inline';
+    }else{
+      document.getElementById('legendCum').style.display='none';
+    }
+  }
 
-  // bar
-  drawBar(document.getElementById('bar'), items, total);
-}
+  // Week
+  const cWeek = document.getElementById('cWeek');
+  document.getElementById('emptyWeek').style.display = ensureNonEmpty(dByWeek)?'none':'block';
+  if(ensureNonEmpty(dByWeek)){
+    barChart(cWeek, dByWeek, {color:'#9fb6ff'});
+  }
 
-async function loadSamples(category){
-  document.getElementById('sampleTitle').textContent = category ? `· ${category}` : '';
-  const grid = document.getElementById('samples');
-  grid.innerHTML = '<div class="meta">Loading…</div>';
-  const rows = await fetchBreakdown(); // [{category,count,sample_ids:[]},...]
-  const hit = rows.find(r => (r.category || 'uncategorized') === (category || 'uncategorized'));
-  if(!hit){ grid.innerHTML = '<div class="meta">No samples.</div>'; return; }
-  grid.innerHTML = '';
-  (hit.sample_ids || []).forEach(id=>{
-    const img = document.createElement('img');
-    img.className = 'thumb';
-    img.src = api(`/api/images/${id}/view`);
-    img.alt = `#${id}`;
-    grid.appendChild(img);
-  });
-}
+  // Categories
+  const cCat = document.getElementById('cCat');
+  document.getElementById('emptyCat').style.display = ensureNonEmpty(dCat)?'none':'block';
+  if(ensureNonEmpty(dCat)){
+    const colors = pieChart(cCat, dCat);
+    setLegendList('legendCat', dCat, colors);
+  }else{
+    document.getElementById('legendCat').innerHTML='';
+  }
 
-function exportCSV(byCategory){
-  const rows = [['category','count']];
-  (byCategory||[]).forEach(x=> rows.push([x.category, x.count]));
-  const csv = rows.map(r => r.map(v=>{
-    const s = String(v??''); return s.includes(',') ? `"${s.replace(/"/g,'""')}"` : s;
-  }).join(',')).join('\r\n');
-  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'category_distribution.csv';
-  a.click();
-  setTimeout(()=> URL.revokeObjectURL(a.href), 1000);
-}
-
-async function boot(){
-  try{
-    const data = await fetchSummary();
-    renderSummary(data);
-    // 默认选第一类展示样例
-    if(data.by_category && data.by_category.length){ loadSamples(data.by_category[0].category); }
-    document.getElementById('btnExport').onclick = ()=> exportCSV(data.by_category||[]);
-    document.getElementById('btnRefresh').onclick = async ()=>{ const d=await fetchSummary(); renderSummary(d); };
-    window.addEventListener('resize', async ()=>{ const d=await fetchSummary(); renderSummary(d); }, {passive:true});
-  }catch(e){
-    document.body.innerHTML = `<div style="max-width:720px;margin:80px auto;color:#e6edf3;font-family:system-ui">
-      <h2>Analytics page</h2>
-      <p style="color:#ff6a6a">Failed to load analytics API. Check that the Flask server is running, and the blueprint <code>analytics</code> is registered.</p>
-      <pre style="padding:10px;border:1px solid #1f2a3a;border-radius:10px;background:#0b1119;color:#99a7b4">${e}</pre>
-      <p class="meta">Requires: <code>/api/analytics/summary</code>, <code>/api/analytics/category_breakdown</code></p>
-    </div>`;
+  // MIME
+  const cMime = document.getElementById('cMime');
+  document.getElementById('emptyMime').style.display = ensureNonEmpty(dMime)?'none':'block';
+  if(ensureNonEmpty(dMime)){
+    const colors = pieChart(cMime, dMime);
+    setLegendList('legendMime', dMime, colors);
+  }else{
+    document.getElementById('legendMime').innerHTML='';
   }
 }
 
-boot();
+/* ---------- export ---------- */
+function download(url, filename){
+  const a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); setTimeout(()=>a.remove(),0);
+}
+document.getElementById('dlcsv').onclick = ()=>{
+  const days = document.getElementById('win').value;
+  const qs = new URLSearchParams({ target:'summary', format:'csv', days });
+  download(api(`/api/analytics/export?${qs}`), `analytics_summary_${days}d.csv`);
+};
+document.getElementById('dljson').onclick = ()=>{
+  const days = document.getElementById('win').value;
+  const qs = new URLSearchParams({ days });
+  download(api(`/api/analytics/summary?${qs}`), `analytics_summary_${days}d.json`);
+};
+
+document.getElementById('refresh').onclick = loadSummary;
+
+/* auto boot */
+window.addEventListener('load', loadSummary);
 </script>
 </body>
 </html>

@@ -5,6 +5,7 @@ from ..models import Image as ImageModel, AuditLog
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from .. import db
 from sqlalchemy import or_
+from sqlalchemy.orm import load_only  # 新增：用于一次性取回候选的类别，避免 N 次查询
 
 bp = Blueprint("images", __name__)
 
@@ -112,20 +113,26 @@ def download(image_id):
         abort(404)
     return send_file(i.path, as_attachment=True)
 
-# NEW: similar-by-id
+# NEW: similar-by-id（增强：默认限制同类 same_category=1）
 @bp.get("/api/images/<int:image_id>/similar")
 @jwt_required(optional=True)
 def similar_by_id(image_id: int):
     """
     Find similar images to a given image id.
-    GET /api/images/<id>/similar?k=18&include_self=0
-    - returns {"seed": {...}, "results": [...]}
-    - if include_self=1, seed will also appear as the first item in results
+
+    GET /api/images/<id>/similar?k=18&include_self=0&same_category=1
+      - k: 数量，默认 18
+      - include_self: 是否包含自己，默认 0
+      - same_category: 是否限制在同一 category（默认 1）
+    Response: { items: [{id, score}], seed: {...} }
     """
     k = int(request.args.get("k") or 18)
+    k = max(1, min(200, k))
     include_self = (request.args.get("include_self") or "0") in ("1", "true", "yes")
+    same_category = (request.args.get("same_category") or "1") in ("1", "true", "yes")
 
     seed = ImageModel.query.get_or_404(image_id)
+    seed_cat = (seed.category or "").strip()  # 可能为空字符串
 
     vm = current_app.extensions.get("vec_model")
     fs = current_app.extensions.get("faiss_store")
@@ -137,47 +144,60 @@ def similar_by_id(image_id: int):
 
     try:
         qv = vm.embed_image(seed.path)
-        hits = fs.search(qv, k=k)
+
+        # 为了过滤同类后还能凑足 k 条，这里先多取一些候选
+        topN = max(k * 5, k + 32)
+        raw_hits = fs.search(qv, k=topN)  # [(id, score)]，score 越大越相似/越好
     except Exception as e:
         return jsonify(error=f"search failed: {e}"), 500
 
-    # 组织 seed 信息（方便前端单独展示/高亮）
+    # 构造 seed 信息
     seed_payload = {
         "image_id": seed.id,
         "score": 1.0,
         "score01": 1.0,
+        "category": seed_cat or ""
     }
 
-    results = []
-    for iid, score in hits:
-        iid = int(iid)
-        if not include_self and iid == image_id:
-            continue
-        results.append({
-            "image_id": iid,
-            "score": float(score),
-            "score01": _to01(score),
-        })
+    # 先按 include_self 处理去重
+    cand_pairs = [(int(iid), float(score)) for iid, score in raw_hits]
+    if not include_self:
+        cand_pairs = [(iid, s) for (iid, s) in cand_pairs if iid != image_id]
 
-    # 如果需要把自己也放进 results 的第一位
+    # 如果需要按同类过滤：一次性把候选 id 的类别查出来
+    if same_category:
+        if seed_cat == "":
+            # “无类别”视为同类（即候选也必须无类别/空字符串/NULL）
+            imgs = (
+                ImageModel.query.options(load_only(ImageModel.id, ImageModel.category))
+                .filter(ImageModel.id.in_([iid for iid, _ in cand_pairs]))
+                .all()
+            )
+            by_id = {x.id: (x.category or "") for x in imgs}
+            cand_pairs = [(iid, s) for (iid, s) in cand_pairs if (by_id.get(iid, "") == "")]
+        else:
+            imgs = (
+                ImageModel.query.options(load_only(ImageModel.id, ImageModel.category))
+                .filter(ImageModel.id.in_([iid for iid, _ in cand_pairs]))
+                .all()
+            )
+            by_id = {x.id: (x.category or "") for x in imgs}
+            cand_pairs = [(iid, s) for (iid, s) in cand_pairs if by_id.get(iid, "") == seed_cat]
+
+    # 截断到 k 条，保持 FS 返回的相似度顺序（已经是降序）
+    cand_pairs = cand_pairs[:k]
+
+    # 构造返回
+    items = [{
+        "id": iid,
+        "score": _to01(score) if _to01(score) is not None else 0.0
+    } for iid, score in cand_pairs]
+
+    # include_self 情况：把自己插到最前面（items 仍保持 id/score 字段）
     if include_self:
-        # 去重后把种子插到最前
-        results = [r for r in results if r["image_id"] != image_id]
-        results.insert(0, {"image_id": image_id, "score": 1.0, "score01": 1.0})
+        items = [{"id": image_id, "score": 1.0}] + [it for it in items if it["id"] != image_id]
 
-    #临时更改return jsonify(seed=seed_payload, results=results)
-    # 统一为前端 image.html 期望的返回结构：
-    # { items: [{id, score}], seed: {...} }
-    items = [
-        {
-            "id": r["image_id"],
-            # 优先用已算好的 0-1 分数；没有就把余弦分数映射到 0-1
-            "score": r.get("score01") if r.get("score01") is not None else _to01(r.get("score"))
-        }
-        for r in results
-    ]
     return jsonify(items=items, seed=seed_payload)
-
 
 # Delete image + files
 @bp.delete("/api/images/<int:image_id>")
