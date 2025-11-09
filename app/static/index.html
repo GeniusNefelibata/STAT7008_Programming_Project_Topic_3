@@ -11,7 +11,7 @@
       --ring:0 0 0 3px rgba(106,169,255,.25);
       --radius:16px; --shadow:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.03);
       --w:1380px;
-      --reserve:230px; /* reserved vertical space for header/hero/tabs */
+      --reserve:230px;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -22,7 +22,7 @@
         radial-gradient(1200px 800px at 10% -10%, #12243a 0%, transparent 60%),
         radial-gradient(1000px 600px at 110% 10%, #1a2f4a 0%, transparent 60%),
         var(--bg);
-      overflow:hidden; /* lock page scrolling; only the results pane scrolls */
+      overflow:hidden;
     }
     header{position:sticky; top:0; z-index:50; backdrop-filter: blur(8px);
       background:linear-gradient(180deg, rgba(10,14,20,.9), rgba(10,14,20,.65));
@@ -63,7 +63,7 @@
 
     .grid{display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:16px; margin-top:16px}
     .card{background:linear-gradient(180deg, #0f1520, #0b1119); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden}
-    .card .thumb{width:100%; aspect-ratio:4/3; object-fit:cover; display:block; background:#0c1118}
+    .card .thumb{width:100%; aspect-ratio:4/3; object-fit:cover; display:block; background:#0c1118; cursor:pointer}
     .card .body{padding:10px 12px}
     .meta{display:flex; justify-content:space-between; color:var(--muted); font-size:12px}
     .links{display:flex; gap:10px; margin-top:8px}
@@ -71,7 +71,6 @@
     .links a.danger{color:var(--danger)}
     .score{padding:3px 8px; border-radius:999px; background:rgba(163,255,203,.08); border:1px solid rgba(163,255,203,.25); color:#b7ffd9; font-weight:600; font-size:12px}
 
-    /* Lightbox */
     .lightbox{position:fixed; inset:0; background:rgba(6,10,16,.72); backdrop-filter: blur(6px); display:none; align-items:center; justify-content:center; z-index:80}
     .lightbox.show{display:flex}
     .lb-inner{position:relative; max-width:92vw; max-height:86vh; background:linear-gradient(180deg,#0d121a,#0b0f14); border:1px solid var(--border); border-radius:16px; box-shadow:0 30px 80px rgba(0,0,0,.55); padding:16px}
@@ -83,7 +82,6 @@
     .lb-close{position:absolute; top:10px; right:10px}
     .lb-hint{font-size:12px}
 
-    /* Pre-upload tray */
     .pre{margin-top:12px; padding:10px; border:1px dashed #2a3b54; border-radius:12px; background:rgba(26,41,63,.25); display:none}
     .pre.show{display:block}
     .prebar{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; color:var(--muted); font-size:12px}
@@ -93,7 +91,6 @@
     .rm{position:absolute; top:6px; right:6px; width:22px; height:22px; padding:0; display:grid; place-items:center; line-height:1; font-size:14px; border-radius:999px; border:1px solid #2a3f5a; background:linear-gradient(180deg,#18314c,#142a40); color:#fff; cursor:pointer}
     .rm:hover{filter:brightness(1.08)}
 
-    /* Modals / progress */
     .modal,.prog{position:fixed; inset:0; background:rgba(6,10,16,.72); backdrop-filter: blur(6px); display:none; align-items:center; justify-content:center}
     .modal.show,.prog.show{display:flex}
     .modal-card{width:min(520px,92vw); background:linear-gradient(180deg,#0e141d,#0b0f14); border:1px solid var(--border); border-radius:16px; padding:18px 18px 14px; box-shadow:0 30px 80px rgba(0,0,0,.55)}
@@ -115,7 +112,6 @@
     .toast.show{opacity:1; transform:translateY(0)}
     .hint{color:var(--muted); font-size:12px}
 
-    /* Right: scroller + sticky footer */
     .results-wrap{display:flex; flex-direction:column; max-height:calc(100vh - var(--reserve));}
     .results-scroll{flex:1 1 auto; min-height:0; overflow:auto; padding-right:6px; padding-bottom:10px;}
     .result-footer{position:sticky; bottom:0; background:linear-gradient(180deg,#0c121a,#0e141d); border-top:1px solid #1f2a3a; display:flex; justify-content:center; align-items:center; padding:10px 0 8px; z-index:1;}
@@ -282,17 +278,49 @@ function closeModal(){ $('#modal').classList.remove('show'); }
 $('#modalOk').addEventListener('click', closeModal);
 $('#modal').addEventListener('click', e=>{ if(e.target.id==='modal') closeModal(); });
 
+/* ===== Download helpers (fix no-extension issue) ===== */
+function mimeToExt(mime){
+  if(!mime) return '';
+  const m = mime.toLowerCase();
+  if(m.includes('jpeg') || m.includes('jpg')) return 'jpg';
+  if(m.includes('png')) return 'png';
+  if(m.includes('webp')) return 'webp';
+  if(m.includes('gif')) return 'gif';
+  if(m.includes('bmp')) return 'bmp';
+  if(m.includes('tiff')) return 'tif';
+  return '';
+}
+
+async function downloadById(id, mimeHint){
+  try{
+    const url = api(`/api/images/${id}/download`);
+    const resp = await fetch(url);
+    if(!resp.ok) throw new Error('download failed');
+    const blob = await resp.blob();
+    const ext = mimeToExt(mimeHint) || mimeToExt(resp.headers.get('Content-Type')) || 'bin';
+    const name = `${id}.${ext}`;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0);
+  }catch(e){
+    alert('Download failed.');
+  }
+}
+
 /* cards */
 function card(item){
   const id = item.image_id ?? item.id;
   const src = api(`/api/images/${id}/view`);
-  const dl  = api(`/api/images/${id}/download`);
+  const mime = item.mime || ''; // browse 接口会带，搜索不一定带
   return `<div class="card">
     <img class="thumb" src="${src}" loading="lazy" alt="img-${id}" onclick="openLightboxById(${id})"/>
     <div class="body">
       <div class="meta"><span>ID #${id}</span>${scoreBadge(item.score)}</div>
       <div class="links">
-        <a href="${dl}">download</a>
+        <a href="javascript:void(0)" onclick="downloadById(${id}, '${mime}')">download</a>
         <a href="#" onclick="similar(${id});return false;">similar</a>
         <a href="#" class="danger" onclick="deleteImage(${id});return false;">delete</a>
       </div>
@@ -324,7 +352,7 @@ function render(list){
   applySort();
 }
 function renderSingle(detail){
-  currentList = [{ image_id: detail.id, score: 1.0 }];
+  currentList = [{ image_id: detail.id, score: 1.0, mime: detail.mime }];
   applySort();
 }
 
@@ -517,7 +545,6 @@ document.getElementById('btnViewMore').addEventListener('click', () => { locatio
 
 /* light boot */
 window.addEventListener('load', async ()=>{ try{ await fetchImages(); }catch(e){} });
-
 </script>
 </body>
 </html>

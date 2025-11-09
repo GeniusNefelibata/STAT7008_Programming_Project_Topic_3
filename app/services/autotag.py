@@ -1,139 +1,190 @@
-# app/services/autotag.py
 from __future__ import annotations
-from functools import lru_cache
-from typing import Dict, List, Tuple
+"""
+Auto-tagging utilities built on top of your existing EMB (CLIP) service.
 
+Key points in this version:
+- Canonical (singular) category set + 'others'
+- Plural & synonym folding (cats->cat, landscapes->landscape, receipts->receipt, screenshot(s)->others, etc.)
+- predict_labels() defaults to prefer_plural=False (we don't pluralize by default)
+- Storage should ALWAYS use canonicalize() on the chosen label
+"""
+
+from dataclasses import dataclass
+from typing import Iterable, List, Dict, Tuple, Optional
 import numpy as np
-from . import embeddings as EMB  # uses encode_text / encode_image from your project
 
-# -----------------------------------------------------------------------------
-# 1) Your label set (aligned to your folders)
-#    你可以随时增删；类名要与 image.category 的值一致，便于前端筛选/统计
-# -----------------------------------------------------------------------------
-LABELS: Dict[str, List[str]] = {
-    "cats": [
-        "a photo of a cat",
-        "a cute domestic cat, feline animal",
-        "a kitten with whiskers",
-        "猫 猫咪 的照片",
-    ],
-    "dogs": [
-        "a photo of a dog",
-        "a cute domestic dog, canine animal",
-        "a puppy with leash",
-        "狗 小狗 的照片",
-    ],
-    "elephants": [
-        "a photo of an elephant in the wild",
-        "an elephant with trunk and tusks",
-        "非洲或亚洲 大象 的照片",
-    ],
-    "flowers": [
-        "a photo of flowers in bloom",
-        "a close-up of colorful flower petals",
-        "盛开的 花朵 花瓣 的特写照片",
-    ],
-    "forests": [
-        "a photo of forest with trees and foliage",
-        "dense woodland scenery",
-        "森林 树木 林地 的风景照片",
-    ],
-    "fruits": [
-        "a photo of assorted fruits",
-        "fresh fruits like apples, bananas, oranges",
-        "水果 果盘 新鲜水果 的照片",
-    ],
-    "humans": [
-        "a photo of a person",
-        "a portrait photo of a human",
-        "人物 人像 肖像 的照片",
-    ],
-    "landscapes": [
-        "a landscape photo of mountains, lakes or fields",
-        "wide outdoor natural scenery",
-        "风景 风光 山水 自然景观 的照片",
-    ],
-    "receipts": [
-        "a store receipt printed on thermal paper with items and totals",
-        "a small shopping receipt",
-        "超市/商店 打印的小票 收据 的照片或扫描件",
-    ],
-    "seas": [
-        "a photo of the sea or ocean",
-        "coastline, beach and waves",
-        "海 海洋 海岸 沙滩 海浪 的照片",
-    ],
-    "streets": [
-        "a street scene in a city or town",
-        "urban street with buildings and cars",
-        "街道 城市街景 路面 的照片",
-    ],
-    # 兜底类（可保留）
-    "other": [
-        "an image that does not match the given categories",
-        "miscellaneous content",
-        "其他 杂项 难以归类 的图片",
-    ],
+from . import embeddings as EMB  # SentenceTransformer("clip-ViT-B-32")
+
+# ---------------------------------------------------------------------
+# Canonical category set (singular + 'others')
+# ---------------------------------------------------------------------
+CATEGORY_CANON: Tuple[str, ...] = (
+    "cat", "dog", "elephant", "flower", "forest",
+    "fruit", "human", "landscape", "receipt", "sea", "street",
+    "others",
+)
+
+# Plurals / synonyms -> canonical (None means ignore)
+ALIASES: Dict[str, Optional[str]] = {
+    # explicit singular
+    "cat": "cat", "dog": "dog", "elephant": "elephant", "flower": "flower",
+    "forest": "forest", "fruit": "fruit", "human": "human", "landscape": "landscape",
+    "receipt": "receipt", "sea": "sea", "street": "street", "others": "others",
+
+    # plurals -> singular
+    "cats": "cat", "dogs": "dog", "elephants": "elephant", "flowers": "flower",
+    "forests": "forest", "fruits": "fruit", "humans": "human", "landscapes": "landscape",
+    "receipts": "receipt", "seas": "sea", "streets": "street",
+
+    # screenshot -> others
+    "screenshot": "others", "screenshots": "others",
+
+    # a few common synonyms (optional)
+    "people": "human", "person": "human", "documents": "receipt", "doc": "receipt",
 }
 
-# -----------------------------------------------------------------------------
-# 2) Scoring knobs
-# -----------------------------------------------------------------------------
-AGGREGATION = "max"     # "max" or "mean"  —— 同一类多 prompt 的聚合方式
-TOP_K = 3
-THRESHOLD = 0.55        # 多标签阈值；>= 阈值的类会出现在 multilabel 里
-PRIMARY_FALLBACK = "other"
+def canonicalize(label: str) -> Optional[str]:
+    """Return canonical singular/others, or None if cannot map."""
+    s = (label or "").strip().lower().replace("_", " ")
+    if not s:
+        return None
+    if s in CATEGORY_CANON:
+        return s
+    return ALIASES.get(s)
 
-# -----------------------------------------------------------------------------
-# 3) Core helpers
-# -----------------------------------------------------------------------------
-def _to01(x: np.ndarray) -> np.ndarray:
-    return (x + 1.0) / 2.0  # cosine/IP [-1,1] → [0,1] for readability
-
-@lru_cache(maxsize=1)
-def _label_name_list() -> Tuple[List[str], List[List[str]]]:
-    # 缓存 label 名与其 prompts，便于外层循环
-    names = list(LABELS.keys())
-    prompts = [LABELS[n] for n in names]
-    return names, prompts
-
-# -----------------------------------------------------------------------------
-# 4) Public APIs
-# -----------------------------------------------------------------------------
-def score_image(image_path: str) -> Dict[str, float]:
-    """
-    返回每个类的分数（0~1）。计算方式：
-    - 先 encode 图像向量；
-    - 每个类的多条 prompt 分别 encode 文本向量；
-    - 相似度聚合（max/mean）。
-    """
-    q = EMB.encode_image(image_path)                # (dim,) normalized
-    names, prompts_groups = _label_name_list()
-
-    out: Dict[str, float] = {}
-    for label, prompts in zip(names, prompts_groups):
-        tvecs = np.stack([EMB.encode_text(p) for p in prompts], axis=0)  # (m, dim)
-        sims = tvecs @ q                                                 # [-1, 1]
-        sims01 = _to01(sims)                                             # [0, 1]
-        agg = float(np.max(sims01) if AGGREGATION == "max" else np.mean(sims01))
-        out[label] = agg
+def _canonize_list(labels: Iterable[str]) -> List[str]:
+    """Map list to canonical unique labels, preserving order."""
+    out: List[str] = []
+    seen = set()
+    for lb in labels:
+        c = canonicalize(lb)
+        if not c or c in seen:
+            continue
+        seen.add(c)
+        out.append(c)
     return out
 
-def predict_labels(image_path: str, top_k: int = TOP_K, threshold: float = THRESHOLD):
-    """
-    返回：
-      primary    —— 分数最高的主类（或 fallback）
-      top        —— 前 top_k 的 (label, score)
-      multilabel —— 所有高于阈值的类（至少包含 primary）
-      scores     —— 所有类的分数字典
-    """
-    scores = score_image(image_path)
-    ranking = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
-    top = ranking[:max(1, int(top_k))]
-    primary = (top[0][0] if top else PRIMARY_FALLBACK) or PRIMARY_FALLBACK
+# Display-only pluralization map (NOT used for storage)
+PLURAL_FOR: Dict[str, str] = {
+    "cat": "cats",
+    "dog": "dogs",
+    "elephant": "elephants",
+    "flower": "flowers",
+    "forest": "forests",
+    "fruit": "fruits",
+    "human": "humans",
+    "landscape": "landscapes",
+    "receipt": "receipts",
+    "sea": "seas",
+    "street": "streets",
+    "others": "others",
+}
 
-    ml = [lab for lab, s in scores.items() if s >= float(threshold)]
-    if primary not in ml:
-        ml.insert(0, primary)
+def _to_output_name(canon: str, prefer_plural: bool) -> str:
+    """Optionally pluralize for display while keeping internal canon stable."""
+    if not prefer_plural:
+        return canon
+    return PLURAL_FOR.get(canon, canon)
 
-    return {"primary": primary, "top": top, "multilabel": ml, "scores": scores}
+# Default label set for zero-shot
+DEFAULT_LABELS: Tuple[str, ...] = CATEGORY_CANON
+
+# ---------------------------------------------------------------------
+# Prompt engineering
+# ---------------------------------------------------------------------
+def prompts_for(label: str) -> List[str]:
+    """Build a small set of discriminative prompts; we average their embeddings."""
+    l = canonicalize(label) or label
+    l = str(l).lower().strip().replace("_", " ")
+
+    if l == "others":
+        return [
+            "a generic photo with unknown category",
+            "a miscellaneous scene",
+            "an image that does not fit known categories",
+            "random picture, undefined subject",
+            "various objects, unclear category",
+        ]
+
+    return [
+        f"a photo of {l}",
+        f"{l}, high quality photo",
+        f"natural {l}",
+        f"{l}, close-up",
+        f"{l}, detailed",
+    ]
+
+def _average_text_embedding(prompts: Iterable[str]) -> np.ndarray:
+    """Encode multiple prompts and average to one normalized vector."""
+    vecs = [EMB.encode_text(p) for p in prompts]  # already normalized
+    if not vecs:
+        raise ValueError("No prompts to encode.")
+    M = np.stack(vecs, axis=0)  # (m, dim)
+    v = M.mean(axis=0)
+    n = np.linalg.norm(v)
+    return (v if n == 0 else v / n).astype("float32")
+
+# ---------------------------------------------------------------------
+# Scoring / prediction
+# ---------------------------------------------------------------------
+@dataclass
+class TaggingResult:
+    primary: str                  # output name (may be plural if prefer_plural=True)
+    labels: List[str]             # output names (aligned with prefer_plural)
+    scores: Dict[str, float]      # scores keyed by canonical names
+
+def score_image(image_path: str, labels: Optional[Iterable[str]] = None) -> Dict[str, float]:
+    """
+    Compute cosine/IP scores for an image against each label prototype.
+    Returns: {canonical_label: score in [-1,1]} (higher is better).
+    """
+    label_list_in = list(labels) if labels is not None else list(DEFAULT_LABELS)
+    label_list = _canonize_list(label_list_in)
+    if not label_list:
+        raise ValueError("Empty label set for auto-tagging after canonicalization.")
+
+    ivec = EMB.encode_image(image_path)  # normalized (dim,)
+
+    protos: List[np.ndarray] = []
+    for lbl in label_list:
+        pv = _average_text_embedding(prompts_for(lbl))
+        protos.append(pv)
+
+    P = np.stack(protos, axis=0)  # (L, dim)
+    scores = P @ ivec             # cosine/IP (both normalized)
+    return {label_list[i]: float(scores[i]) for i in range(len(label_list))}
+
+def predict_labels(
+    image_path: str,
+    labels: Optional[Iterable[str]] = None,
+    top_k: int = 3,
+    threshold: float = 0.30,
+    *,
+    prefer_plural: bool = False,  # <- default: DO NOT pluralize
+) -> TaggingResult:
+    """
+    Pick a primary label (argmax) and optional set of labels.
+    Returns output names transformed by prefer_plural for display,
+    but scores keys always stay canonical/singular for storage.
+    """
+    scores = score_image(image_path, labels=labels)
+    if not scores:
+        raise RuntimeError("No scores computed — empty label set?")
+
+    ordered = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
+    primary_canon = ordered[0][0]
+
+    keep = [(lbl, sc) for lbl, sc in ordered if sc >= threshold]
+    if not keep:
+        keep = [ordered[0]]
+    keep = keep[:max(1, top_k)]
+
+    label_list_canon = [lbl for lbl, _ in keep]
+    if primary_canon not in label_list_canon:
+        label_list_canon.insert(0, primary_canon)
+
+    # Only for display we optionally pluralize:
+    primary_out = _to_output_name(primary_canon, prefer_plural)
+    labels_out = [_to_output_name(lbl, prefer_plural) for lbl in label_list_canon]
+
+    return TaggingResult(primary=primary_out, labels=labels_out, scores=scores)

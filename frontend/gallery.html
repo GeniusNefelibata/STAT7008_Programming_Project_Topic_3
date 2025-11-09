@@ -36,12 +36,24 @@
 
   .grid{display:grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap:12px}
   .thumb-card{border:1px solid var(--border); border-radius:12px; background:#0b1119; overflow:hidden}
-  .thumb-card img{width:100%; aspect-ratio:4/3; object-fit:cover; display:block}
+  .thumb-card img{width:100%; aspect-ratio:4/3; object-fit:cover; display:block; cursor:pointer}
   .thumb-meta{padding:8px 10px; display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--muted)}
 
   .footerbar{display:flex; align-items:center; gap:10px; justify-content:flex-start; margin-top:12px}
   .footerbar .info{color:var(--muted); font-size:12px}
   .jump{display:flex; align-items:center; gap:6px}
+
+  /* Lightbox */
+  .lightbox{position:fixed; inset:0; background:rgba(6,10,16,.72); backdrop-filter: blur(6px); display:none; align-items:center; justify-content:center; z-index:80}
+  .lightbox.show{display:flex}
+  .lb-inner{position:relative; max-width:92vw; max-height:86vh; background:linear-gradient(180deg,#0d121a,#0b0f14); border:1px solid var(--border); border-radius:16px; box-shadow:0 30px 80px rgba(0,0,0,.55); padding:16px}
+  .lb-img{max-width:86vw; max-height:72vh; display:block; border-radius:12px}
+  .lb-meta{display:flex; align-items:center; justify-content:space-between; margin-top:10px; color:var(--muted)}
+  .lb-actions{position:absolute; inset:auto 14px 16px 14px; display:flex; justify-content:space-between; pointer-events:none}
+  .lb-btn{pointer-events:auto; width:42px; height:42px; border-radius:999px; border:1px solid #2a3f5a; background:linear-gradient(180deg,#18314c,#142a40); color:var(--fg); display:grid; place-items:center; cursor:pointer; opacity:.92}
+  .lb-btn:hover{filter:brightness(1.08)}
+  .lb-close{position:absolute; top:10px; right:10px}
+  .lb-hint{font-size:12px}
 </style>
 </head>
 <body>
@@ -61,7 +73,7 @@
         <label>Category</label>
         <select id="f_category">
           <option value="">All</option>
-          <option value="uncategorized">uncategorized</option>
+          <!-- options will be injected dynamically; no 'uncategorized' here -->
         </select>
       </div>
       <div class="filter-group">
@@ -81,7 +93,7 @@
         <button class="btn" id="btnApply">Apply</button>
         <button class="btn" id="btnReset">Reset</button>
       </div>
-      <div class="muted" style="margin-top:10px">Tip: Click image to download. “similar” jumps to Studio for similarity search.</div>
+      <div class="muted" style="margin-top:10px">Tip: Click image to preview. Use the button to download; “similar” jumps to Studio.</div>
     </aside>
 
     <!-- Right: Grid + Pagination -->
@@ -104,16 +116,73 @@
   </div>
 </div>
 
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" aria-modal="true" role="dialog">
+  <div class="lb-inner">
+    <button class="lb-btn lb-close" id="lbClose" title="Close (Esc)">✕</button>
+    <img id="lbImg" class="lb-img" alt="preview"/>
+    <div class="lb-actions">
+      <button class="lb-btn" id="lbPrev" title="Prev (←)">◀</button>
+      <button class="lb-btn" id="lbNext" title="Next (→)">▶</button>
+    </div>
+    <div class="lb-meta">
+      <div id="lbCaption">Preview</div>
+      <div class="lb-hint">
+        <button class="btn" id="lbDownload">Download</button>
+        <span style="margin-left:8px">Esc to close · ← / → to navigate</span>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
+// ---------- helpers ----------
 const api = p => (p && p.startsWith('http')) ? p : `${location.origin}${p}`;
 
+function mimeToExt(mime){
+  if(!mime) return '';
+  const m = mime.toLowerCase();
+  if(m.includes('jpeg') || m.includes('jpg')) return 'jpg';
+  if(m.includes('png')) return 'png';
+  if(m.includes('webp')) return 'webp';
+  if(m.includes('gif')) return 'gif';
+  if(m.includes('bmp')) return 'bmp';
+  if(m.includes('tiff')) return 'tif';
+  return '';
+}
+
+async function downloadItem(it){
+  try{
+    const url = api(`/api/images/${it.id}/download`);
+    const resp = await fetch(url);
+    if(!resp.ok) throw new Error('download failed');
+    const blob = await resp.blob();
+    const ext = mimeToExt(it.mime) || mimeToExt(resp.headers.get('Content-Type')) || 'bin';
+    const name = `${it.id}.${ext}`;
+
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0);
+  }catch(e){
+    alert('Download failed.');
+  }
+}
+
+// 兼容两种返回形态：[{category,count}, ...] 或 {items:[...]}
 async function fetchCategories(){
   try{
     const r = await fetch(api('/api/analytics/category_breakdown'));
     if(!r.ok) return [];
-    const rows = await r.json();
-    // Expect rows like [{category:'xxx', count:n}, ...]
-    return rows.map(x => x.category || 'uncategorized').filter(Boolean);
+    const data = await r.json();
+    const rows = Array.isArray(data) ? data : (data.items || []);
+    return rows
+      .map(x => ({ c: (x.category || '').trim(), n: x.count || 0 }))
+      .filter(x => x.c && x.c !== 'uncategorized' && x.n > 0)
+      .sort((a,b)=> a.c.localeCompare(b.c))
+      .map(x => x.c);
   }catch(_){ return []; }
 }
 
@@ -126,18 +195,23 @@ async function fetchImages({category='', order='desc', limit=24, page=1}={}){
   return r.json(); // { items:[...], total: N }
 }
 
-function imgCard(it){
+function imgCard(it, idx){
   const el = document.createElement('div');
   el.className = 'thumb-card';
+  const thumbUrl = api(`/api/images/${it.id}/thumb`);
   el.innerHTML = `
-    <img src="${api('/api/images/'+it.id+'/view')}" alt="#${it.id}" title="Click to download" onclick="location.href='${api('/api/images/'+it.id+'/download')}'">
+    <img src="${thumbUrl}" alt="#${it.id}" title="Click to preview">
     <div class="thumb-meta">
       <span>#${it.id} · ${(it.category||'—')}</span>
       <span>
-        <a href="${api('/api/images/'+it.id+'/download')}" class="link" style="margin-right:8px">download</a>
+        <a href="javascript:void(0)" class="link" style="margin-right:8px" data-dl>download</a>
         <a href="/#similar=${it.id}" class="link">similar</a>
       </span>
     </div>`;
+  // 点击缩略图 -> 预览
+  el.querySelector('img').onclick = () => openLightbox(idx);
+  // 下载按钮
+  el.querySelector('[data-dl]').onclick = () => downloadItem(it);
   return el;
 }
 
@@ -150,6 +224,8 @@ let state = {
   total: 0,
   totalPages: 1
 };
+let currentItems = []; // 当前页的 items
+let currentIndex = -1; // lightbox 索引
 
 function updatePagerUI(){
   state.totalPages = Math.max(1, Math.ceil((state.total || 0) / state.limit));
@@ -161,21 +237,51 @@ async function load(reset=false){
   if(reset){ state.page = 1; }
   const data = await fetchImages(state);
   const items = data.items || [];
+  currentItems = items;            // 存给 lightbox 使用
   state.total = Number.isFinite(data.total) ? data.total : (state.page-1)*state.limit + items.length; // fallback
   const grid = document.getElementById('grid');
   grid.innerHTML = '';
-  items.forEach(it => grid.appendChild(imgCard(it)));
+  items.forEach((it, i) => grid.appendChild(imgCard(it, i)));
   updatePagerUI();
 }
 
+// ---------- Lightbox ----------
+function openLightbox(idx){
+  if(idx<0 || idx>=currentItems.length) return;
+  currentIndex = idx;
+  const it = currentItems[idx];
+  const full = api(`/api/images/${it.id}/view`);
+  document.getElementById('lbImg').src = full;
+  document.getElementById('lbCaption').textContent = `#${it.id} · ${(it.category||'—')}`;
+  document.getElementById('lightbox').classList.add('show');
+
+  // 绑定下载当前项
+  const btn = document.getElementById('lbDownload');
+  btn.onclick = () => downloadItem(it);
+}
+function closeLightbox(){ document.getElementById('lightbox').classList.remove('show'); }
+function nextLightbox(){ if(!currentItems.length) return; openLightbox((currentIndex+1)%currentItems.length); }
+function prevLightbox(){ if(!currentItems.length) return; openLightbox((currentIndex-1+currentItems.length)%currentItems.length); }
+document.getElementById('lbClose').onclick = closeLightbox;
+document.getElementById('lbNext').onclick = nextLightbox;
+document.getElementById('lbPrev').onclick = prevLightbox;
+document.getElementById('lightbox').addEventListener('click', e => {
+  if(e.target.id === 'lightbox') closeLightbox();
+});
+window.addEventListener('keydown', e => {
+  const on = document.getElementById('lightbox').classList.contains('show');
+  if(!on) return;
+  if(e.key === 'Escape') closeLightbox();
+  if(e.key === 'ArrowRight') nextLightbox();
+  if(e.key === 'ArrowLeft') prevLightbox();
+});
+
 // ---------- Events ----------
 (async function boot(){
-  // fill category options
+  // 填充类目选项（不含 uncategorized）
   const cats = await fetchCategories();
   const sel = document.getElementById('f_category');
   cats.forEach(c=>{
-    // avoid duplicate "uncategorized" since it's seeded in markup
-    if (c === 'uncategorized') return;
     const opt = document.createElement('option');
     opt.value = c; opt.textContent = c;
     sel.appendChild(opt);

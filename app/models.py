@@ -53,6 +53,13 @@ class Image(db.Model):
         primaryjoin="Image.id==OcrText.image_id",
         lazy=True,
     )
+    tags = db.relationship(
+        "ImageTag",
+        backref=db.backref("img", lazy=True),
+        cascade="all, delete-orphan",
+        lazy="dynamic",
+    )
+
 
     def __repr__(self) -> str:
         cat = self.category or "uncategorized"
@@ -116,3 +123,19 @@ class AuditLog(db.Model):
 
     def __repr__(self) -> str:
         return f"<AuditLog id={self.id} action={self.action} user={self.user_id}>"
+
+
+# ---------- Optional: multi-label tagging ----------
+from sqlalchemy import UniqueConstraint
+
+class ImageTag(db.Model):
+    __tablename__ = "image_tag"
+    id = db.Column(db.Integer, primary_key=True)
+    image_id = db.Column(db.Integer, db.ForeignKey("image.id"), index=True, nullable=False)
+    tag = db.Column(db.String(64), nullable=False, index=True)
+    score = db.Column(db.Float, nullable=True)
+
+    __table_args__ = (UniqueConstraint("image_id", "tag", name="uq_image_tag"), )
+
+    def __repr__(self) -> str:
+        return f"<ImageTag image={self.image_id} tag={self.tag} score={self.score}>"
