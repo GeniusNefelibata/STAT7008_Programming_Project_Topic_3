@@ -81,25 +81,47 @@ def image_detail(image_id):
     )
 
 # Preview: original image
-@bp.get("/api/images/<int:image_id>/view")
+"""@bp.get("/api/images/<int:image_id>/view")
 @jwt_required(optional=True)
 def view_image(image_id):
     i = ImageModel.query.get_or_404(image_id)
     if not os.path.exists(i.path):
         abort(404)
-    return send_file(i.path, as_attachment=False)
+    return send_file(i.path, as_attachment=False)"""
 
 # Preview: thumbnail (fallback to original)
-@bp.get("/api/images/<int:image_id>/thumb")
+"""@bp.get("/api/images/<int:image_id>/thumb")
 @jwt_required(optional=True)
 def view_thumb(image_id):
     i = ImageModel.query.get_or_404(image_id)
     path = i.thumb_path or i.path
     if not os.path.exists(path):
         abort(404)
-    return send_file(path, as_attachment=False)
+    return send_file(path, as_attachment=False)"""
+@bp.get("/api/images/<int:image_id>/view")
+@jwt_required(optional=True)
+def view_image(image_id):
+    i = ImageModel.query.get_or_404(image_id)
+    path = _resolve_image_path(i)
+    if not path:
+        abort(404)
+    mime = (getattr(i, "mime", None)
+            or mimetypes.guess_type(path)[0]
+            or "image/jpeg")
+    return send_file(path, mimetype=mime, as_attachment=False, conditional=True)
 
-@bp.get("/api/images/<int:image_id>/download")
+@bp.get("/api/images/<int:image_id>/thumb")
+@jwt_required(optional=True)
+def view_thumb(image_id):
+    i = ImageModel.query.get_or_404(image_id)
+    path = _resolve_thumb_path(i) or _resolve_image_path(i)
+    if not path:
+        abort(404)
+    # 缩略图统一按 jpeg 下发
+    return send_file(path, mimetype="image/jpeg", as_attachment=False, conditional=True)
+
+#临时更改
+"""@bp.get("/api/images/<int:image_id>/download")
 @jwt_required(optional=True)
 def download(image_id):
     i = ImageModel.query.get_or_404(image_id)
@@ -111,7 +133,140 @@ def download(image_id):
     db.session.add(log); db.session.commit()
     if not os.path.exists(i.path):
         abort(404)
-    return send_file(i.path, as_attachment=True)
+    return send_file(i.path, as_attachment=True)"""
+import os, mimetypes
+from flask import current_app, send_file, abort
+# -------- 路径与缩略图 “自愈” 辅助 --------
+def _norm(p: str) -> str:
+    return p.replace("\\", "/")
+
+def _data_dir() -> str:
+    return current_app.config.get(
+        "DATA_DIR",
+        os.path.abspath(os.path.join(current_app.root_path, "..", "data"))
+    )
+
+def _img_store_path(sha: str) -> str:
+    return os.path.join(_data_dir(), "images", sha[:2], sha[2:4], sha)
+
+def _thumb_store_path(sha: str) -> str:
+    return os.path.join(_data_dir(), "thumbs", sha[:2], sha[2:4], f"{sha}.jpg")
+
+def _ensure_dir(p: str):
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+
+def _ensure_thumb(src_path: str, thumb_path: str, size: int = 512):
+    if os.path.exists(thumb_path):
+        return
+    _ensure_dir(thumb_path)
+    with PILImage.open(src_path) as im:
+        im.thumbnail((size, size))
+        im.convert("RGB").save(thumb_path, "JPEG", quality=85)
+
+def _resolve_image_path(img) -> str | None:
+    # 1) 先用数据库记录
+    if img.path and os.path.exists(img.path):
+        return img.path
+    # 2) 退化：按 sha256 推导仓储路径
+    sha = getattr(img, "sha256", None)
+    if sha:
+        alt = _img_store_path(sha)
+        if os.path.exists(alt):
+            if img.path != _norm(alt):
+                img.path = _norm(alt)
+                from .. import db
+                db.session.commit()
+            return alt
+    return None
+
+def _resolve_thumb_path(img) -> str | None:
+    # 若 DB 中的缩略图存在就用
+    if getattr(img, "thumb_path", None) and os.path.exists(img.thumb_path):
+        return img.thumb_path
+    # 否则尝试从原图生成
+    src = _resolve_image_path(img)
+    if not src:
+        return None
+    thumb = _thumb_store_path(img.sha256)
+    try:
+        _ensure_thumb(src, thumb, 512)
+    except Exception:
+        traceback.print_exc()
+        return None
+    if getattr(img, "thumb_path", None) != _norm(thumb):
+        img.thumb_path = _norm(thumb)
+        from .. import db
+        db.session.commit()
+    return thumb
+
+# 下载用的扩展名推断与文件名
+_EXT_MAP = {
+    "image/jpeg": ".jpg", "image/jpg": ".jpg",
+    "image/png": ".png",  "image/webp": ".webp",
+    "image/bmp": ".bmp",  "image/tiff": ".tiff",
+}
+def _infer_ext(img) -> str:
+    if getattr(img, "mime", None):
+        mt = img.mime.lower()
+        ext = _EXT_MAP.get(mt) or (mimetypes.guess_extension(mt) or "")
+        if ext in (".jpe", ".jpeg"):
+            ext = ".jpg"
+        if ext:
+            return ext
+    if getattr(img, "path", None):
+        _, ext = os.path.splitext(img.path)
+        if ext:
+            return ext.lower()
+    return ".jpg"
+
+def _download_filename(img) -> str:
+    prefix = (getattr(img, "category", None) or "image").replace("/", "_")
+    return f"{prefix}-{img.id}{_infer_ext(img)}"
+
+@bp.get("/api/images/<int:image_id>/download")
+@jwt_required(optional=True)
+def download(image_id):
+    i = ImageModel.query.get_or_404(image_id)
+
+    # 审计日志（保留你原来的逻辑）
+    log = AuditLog(
+        user_id=get_jwt_identity(),
+        action="download", target_type="image", target_id=i.id,
+        ip=None, ua=None
+    )
+    db.session.add(log)
+    db.session.commit()
+
+    # 先用数据库里的路径
+    path = i.path if i.path else None
+
+    # 如果不存在，按 sha256 推导一次仓储路径（data/images/aa/bb/sha）
+    if not path or not os.path.exists(path):
+        sha = getattr(i, "sha256", None)
+        if sha:
+            data_dir = current_app.config.get(
+                "DATA_DIR",
+                os.path.abspath(os.path.join(current_app.root_path, "..", "data"))
+            )
+            alt = os.path.join(data_dir, "images", sha[:2], sha[2:4], sha)
+            if os.path.exists(alt):
+                path = alt
+
+    if not path or not os.path.exists(path):
+        abort(404)
+
+    # 统一内容类型，并指定下载文件名（带扩展名）
+    mime = (getattr(i, "mime", None)
+            or mimetypes.guess_type(path)[0]
+            or "application/octet-stream")
+
+    return send_file(
+        path,
+        mimetype=mime,
+        as_attachment=True,
+        download_name=_download_filename(i),  # <- 关键：带扩展名
+        conditional=True
+    )
 
 # NEW: similar-by-id（增强：默认限制同类 same_category=1）
 @bp.get("/api/images/<int:image_id>/similar")
