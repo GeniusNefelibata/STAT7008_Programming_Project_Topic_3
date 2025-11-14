@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>注册 / 登录 · Image Drive</title>
+<style>
+  /* ===== Dark theme tokens (贴近 Studio 页面) ===== */
+  :root{
+    --bg: #0b1220;            /* 页面背景 */
+    --panel: #0f172a;         /* 卡片主色（深蓝灰） */
+    --panel-2: #0d1526;       /* 次级面板 */
+    --text: #e5e7eb;          /* 主要文字 */
+    --muted: #97a3b6;         /* 次要文字 */
+    --accent: #60a5fa;        /* 高亮蓝 */
+    --accent-2: #38bdf8;      /* 次高亮青 */
+    --border: #1f2937;        /* 轮廓线 */
+    --shadow: 0 10px 30px rgba(0,0,0,.45);
+    --radius-lg: 14px;
+    --radius-md: 12px;
+  }
+
+  /* ===== Base ===== */
+ html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: #e2e8f0;
+  background: radial-gradient(
+      circle at 20% 10%,
+      rgba(56, 189, 248, 0.08) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      circle at 90% 30%,
+      rgba(56, 189, 248, 0.1) 0%,
+      transparent 55%
+    ),
+    linear-gradient(180deg, #0f172a 0%, #0a0f1e 100%);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  background-size: cover;
+}
+
+
+
+  .wrap{
+    max-width: 880px;
+    margin: 64px auto;
+    padding: 0 22px;
+  }
+
+  .title{
+    display:flex; align-items:center; gap:12px;
+    font-weight:800; letter-spacing:.5px; margin:0 0 18px; line-height:1.2;
+  }
+  .title .dot{
+    width:22px; height:22px; border-radius:50%;
+    background:linear-gradient(135deg, var(--accent), var(--accent-2));
+    box-shadow:0 0 16px rgba(56,189,248,.45);
+  }
+  .subtitle{ color:var(--muted); margin:4px 0 22px; font-size:14px; }
+
+  /* ===== Card ===== */
+  .card{
+    background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.01)) , var(--panel);
+    border:1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    padding: 22px;
+  }
+
+  /* ===== Tabs ===== */
+  .tabs{ display:inline-flex; border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  .tabs button{
+    background:transparent; color:var(--muted); border:0; padding:10px 16px; cursor:pointer;
+  }
+  .tabs button.active{
+    color:#0b1220; background:linear-gradient(135deg, var(--accent), var(--accent-2));
+    font-weight:700;
+  }
+
+  /* ===== Form ===== */
+  .grid{ display:grid; grid-template-columns: 1fr; gap:12px; margin-top:16px; }
+  label{ font-weight:700; color:var(--text); margin-top:6px; }
+  .input{
+    width:100%; padding:13px 14px;
+    background: #0b1324; color:var(--text);
+    border:1px solid #1b2435; border-radius:12px; outline:none;
+    transition: border .15s, box-shadow .15s;
+  }
+  .input::placeholder{ color:#6b7280; }
+  .input:focus{
+    border-color: #2a3a5c;
+    box-shadow: 0 0 0 3px rgba(96,165,250,.22);
+  }
+
+  .primary{
+    margin-top:10px; width:100%; padding:12px 16px;
+    border-radius:12px; border:1px solid transparent;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color:#0b1220; font-weight:800; cursor:pointer;
+    box-shadow:0 6px 18px rgba(56,189,248,.25);
+  }
+  .primary:hover{ filter:brightness(1.05); }
+  .primary[disabled]{ opacity:.65; cursor:not-allowed; }
+
+  /* Secondary actions row */
+  .actions{
+    display:flex; gap:10px; margin-top:10px;
+  }
+  .btn{
+    flex:1; padding:10px 12px; border-radius:10px; cursor:pointer;
+    color:var(--text); background: var(--panel-2); border:1px solid #1b2435;
+  }
+  .btn:hover{ border-color:#2a3a5c; }
+
+  /* Messages */
+  .msg{ margin-top:12px; padding:10px 12px; border-radius:12px; border:1px solid #1b2435; display:none; }
+  .msg.ok{ display:block; border-color:#10b981; background:rgba(16,185,129,.12); }
+  .msg.err{ display:block; border-color:#ef4444; background:rgba(239,68,68,.12); }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1 class="title"><span class="dot"></span>Image Drive · Login</h1>
+    <div class="subtitle">登录或注册以使用 Image Drive · Studio</div>
+
+    <div class="card">
+      <div class="tabs" role="tablist">
+        <button id="tabLogin" class="active" aria-selected="true">登录</button>
+        <button id="tabRegister" aria-selected="false">注册</button>
+      </div>
+
+      <div class="grid">
+        <div>
+          <label for="email">邮箱</label>
+          <input id="email" class="input" type="email" placeholder="name@example.com" autocomplete="username" />
+        </div>
+        <div>
+          <label for="password">密码</label>
+          <input id="password" class="input" type="password" placeholder="••••••••" autocomplete="current-password" />
+        </div>
+        <button id="btnPrimary" class="primary">登录</button>
+
+        <div class="actions">
+          <button id="btnRefresh" class="btn" title="用 refresh_token 刷新 access_token">刷新 Access</button>
+          <button id="btnCheck"   class="btn" title="调用受保护接口 /auth/me">校验状态</button>
+          <button id="btnLogout"  class="btn" title="注销并清理本地凭证">退出</button>
+        </div>
+
+        <div id="msg" class="msg"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const $ = (id)=>document.getElementById(id);
+  let mode = "login";
+
+  // Tabs
+  $("tabLogin").onclick   = ()=>{ mode="login";   setActive(); };
+  $("tabRegister").onclick= ()=>{ mode="register";setActive(); };
+  function setActive(){
+    $("tabLogin").classList.toggle("active",   mode==="login");
+    $("tabRegister").classList.toggle("active",mode==="register");
+    $("tabLogin").setAttribute("aria-selected", mode==="login");
+    $("tabRegister").setAttribute("aria-selected", mode==="register");
+    $("btnPrimary").textContent = mode==="login" ? "登录" : "注册并登录";
+  }
+
+  // helpers
+  const showMsg = (ok, text)=>{
+    const box = $("msg");
+    box.className = "msg " + (ok ? "ok":"err");
+    box.textContent = text;
+  };
+  async function postJson(url, data, headers){
+    const r = await fetch(url, {method:"POST", headers:Object.assign({"Content-Type":"application/json"}, headers||{}), body:JSON.stringify(data||{})});
+    let j={}; try{ j = await r.json(); }catch(e){}
+    return {ok:r.ok, status:r.status, json:j};
+  }
+
+  // primary action: register+login or login
+  $("btnPrimary").onclick = doPrimary;
+  $("password").addEventListener("keydown", e => { if(e.key==="Enter") doPrimary(); });
+
+  async function doPrimary(){
+    const email = $("email").value.trim();
+    const password = $("password").value;
+    if(!email || !password){ showMsg(false, "请输入邮箱和密码"); return; }
+
+    const btn = $("btnPrimary"); btn.disabled = true; const prev = btn.textContent; btn.textContent = "处理中…";
+    try{
+      if(mode === "register"){
+        const reg = await postJson("/register_submit", {email, password});
+        if(!(reg.ok && reg.json && reg.json.ok)){ showMsg(false, reg.json.error || ("注册失败（HTTP "+reg.status+"）")); return; }
+      }
+      const res = await postJson("/login_submit", {email, password});
+      if(res.ok && res.json && res.json.ok){
+        // 保存 token（可用于后续页面）
+        localStorage.setItem("access_token",  res.json.access_token || "");
+        localStorage.setItem("refresh_token", res.json.refresh_token || "");
+
+        showMsg(true, "登录成功，正在进入 Studio …");
+        // ⚡️ 与 Studio 统一：成功后直接跳转（按需改成 /...）
+        setTimeout(()=> window.location.href="/", 700);
+      }else{
+        showMsg(false, res.json.error || ("登录失败（HTTP "+res.status+"）"));
+      }
+    }catch(e){
+      showMsg(false, "网络异常：" + e);
+    }finally{
+      btn.disabled = false; btn.textContent = prev;
+    }
+  }
+
+  // refresh access with refresh_token
+  $("btnRefresh").onclick = async ()=>{
+    const refresh = localStorage.getItem("refresh_token");
+    if(!refresh){ showMsg(false, "尚未登录"); return; }
+    const r = await fetch("/refresh_submit", {method:"POST", headers:{Authorization:"Bearer "+refresh}});
+    let j={}; try{ j = await r.json(); }catch(e){}
+    if(r.ok && j.ok && j.access_token){
+      localStorage.setItem("access_token", j.access_token);
+      showMsg(true, "Access 已刷新");
+    }else{
+      showMsg(false, j.error || ("刷新失败（HTTP "+r.status+"）"));
+    }
+  };
+
+  // check /auth/me
+  $("btnCheck").onclick = async ()=>{
+    const access = localStorage.getItem("access_token");
+    if(!access){ showMsg(false, "未登录"); return; }
+    const r = await fetch("/auth/me", {headers:{Authorization:"Bearer "+access}});
+    if(r.ok){ const j = await r.json().catch(()=>({})); showMsg(true, "已登录：" + (j.email||j.id)); }
+    else if(r.status===401){ showMsg(false, "未授权或已过期"); }
+    else{ showMsg(false, "校验失败：" + r.status); }
+  };
+
+  // logout
+  $("btnLogout").onclick = async ()=>{
+    const access = localStorage.getItem("access_token");
+    try{ await fetch("/auth/logout",{method:"POST",headers:{Authorization:"Bearer "+access}}); }catch(e){}
+    localStorage.removeItem("access_token"); localStorage.removeItem("refresh_token");
+    showMsg(true, "已退出登录");
+  };
+</script>
+</body>
+</html>
