@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 from datetime import datetime
-from . import db
+#from . import db
+from .extensions import db
 
 
 # NOTE:

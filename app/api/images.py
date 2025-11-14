@@ -3,7 +3,9 @@ import os
 from flask import Blueprint, jsonify, send_file, abort, request, current_app
 from ..models import Image as ImageModel, AuditLog
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from .. import db
+#from .. import db
+from ..extensions import db
+from ..models import Image as ImageModel, AuditLog
 from sqlalchemy import or_
 from sqlalchemy.orm import load_only  # 新增：用于一次性取回候选的类别，避免 N 次查询
 

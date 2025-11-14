@@ -5,8 +5,12 @@ from tkinter import Image
 from flask import Flask, jsonify, current_app, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager
+from .logging_utils import configure_file_logging, record_audit
+from .extensions import db, jwt
+import uuid, time
+from flask import request, g
 
-db = SQLAlchemy()
+#db = SQLAlchemy()
 jwt = JWTManager()
 
 
@@ -61,6 +65,47 @@ def create_app(light: bool = False):
     db.init_app(app)
     jwt.init_app(app)
 
+    with app.app_context():
+        from . import models
+        db.create_all()
+
+        # 此处再引入日志工具（现在引入不再形成环）
+        from .logging_utils import configure_file_logging, record_audit
+        configure_file_logging(app)
+
+        # 注册你的蓝图（示例）
+        from .api.images import bp as images_bp
+        app.register_blueprint(images_bp)
+
+        @app.errorhandler(Exception)
+        def _handle_err(e):
+            app.logger.exception("Unhandled")
+            try:
+                record_audit("error", level="ERROR", status="500", message=str(e))
+            except Exception:
+                pass
+            return jsonify({"error": "internal_error"}), 500
+
+    @app.before_request
+    def _start_timer():
+        g._t0 = time.perf_counter()
+        g.request_id = uuid.uuid4().hex
+
+    @app.after_request
+    def _access_log(resp):
+        try:
+            dt = (time.perf_counter() - getattr(g, "_t0", time.perf_counter())) * 1000
+            app.logger.info(
+                f"[access] rid={g.request_id} {request.remote_addr} {request.method} {request.path} "
+                f"{resp.status_code} {int(dt)}ms ua={request.user_agent.string}"
+            )
+            # 如需记入审计：
+            # record_audit("access", status=resp.status_code,
+            #              message=f"{request.method} {request.path}",
+            #              meta={"rid": g.request_id, "ms": int(dt)})
+        except Exception:
+            pass
+        return resp
     # ---------- Blueprint autoload ----------
     def _maybe_register(dotted: str):
         try:
@@ -232,5 +277,36 @@ def create_app(light: bool = False):
     @app.get("/")
     def home():
         return current_app.send_static_file("index.html")
+    
+    from flask import request
+
+    @app.after_request
+    def _audit_non2xx(resp):
+        try:
+            if resp.status_code >= 400:
+                record_audit("http_error",
+                            level="WARNING" if resp.status_code < 500 else "ERROR",
+                            status=str(resp.status_code),
+                            message=f"{request.method} {request.path}")
+        except Exception:
+            pass
+        return resp
+    
+    # —— 启用文件日志（轮转） ——
+    configure_file_logging(app)
+
+    # —— 统一错误捕获：写入 error.log + 审计轨迹 ——
+    @app.errorhandler(Exception)
+    def _handle_err(e):
+        app.logger.exception("Unhandled error")
+        try:
+            record_audit("error", level="ERROR", status="500",
+                         message=str(e), meta={"path": request.path})
+        except Exception:
+            pass
+        # 保持原响应风格（可自定义）
+        return jsonify({"error": "internal_error", "message": str(e)}), 500
+
+
 
     return app
