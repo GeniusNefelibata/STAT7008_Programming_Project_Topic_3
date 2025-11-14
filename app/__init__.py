@@ -99,10 +99,10 @@ def create_app(light: bool = False):
                 f"[access] rid={g.request_id} {request.remote_addr} {request.method} {request.path} "
                 f"{resp.status_code} {int(dt)}ms ua={request.user_agent.string}"
             )
-            # 如需记入审计：
-            # record_audit("access", status=resp.status_code,
-            #              message=f"{request.method} {request.path}",
-            #              meta={"rid": g.request_id, "ms": int(dt)})
+            # 记入审计：
+            record_audit("access", status=resp.status_code,
+                         message=f"{request.method} {request.path}",
+                         meta={"rid": g.request_id, "ms": int(dt)})
         except Exception:
             pass
         return resp
