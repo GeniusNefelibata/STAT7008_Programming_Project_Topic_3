@@ -9,7 +9,7 @@ from .logging_utils import configure_file_logging, record_audit
 from .extensions import db, jwt
 import uuid, time
 from flask import request, g
-
+from werkzeug.exceptions import HTTPException
 #db = SQLAlchemy()
 jwt = JWTManager()
 
@@ -299,15 +299,36 @@ def create_app(light: bool = False):
     
     # —— 启用文件日志（轮转） ——
     #configure_file_logging(app)
-    from werkzeug.exceptions import HTTPException
+    #from werkzeug.exceptions import HTTPException
     # —— 统一错误捕获：写入 error.log + 审计轨迹 ——
-    @app.errorhandler(Exception)
-    def _handle_err(e):
+    #@app.errorhandler(Exception)
+    #def _handle_err(e):
         # 关键：HTTPException（含 404）直接原样返回，别转成 500
-        if isinstance(e, HTTPException):
-            return e
+     #   if isinstance(e, HTTPException):
+      #      return e
 
         # 只有非 HTTPException 的“真异常”才记 500
+       # current_app.logger.exception("Unhandled error")
+        #return jsonify({"error": "internal_error", "message": str(e)}), 500
+    @app.errorhandler(Exception)
+    def _handle_err(e):
+        rid = getattr(g, "rid", "-")
+        # 1) 对 404/401/400 这类 HTTPException：不记堆栈，原样返回
+        if isinstance(e, HTTPException):
+            current_app.logger.warning(
+                f"[http-error] rid={rid} {e.code} {request.method} {request.path}"
+            )
+            return e
+
+        # 2) 其它未捕获异常：记堆栈 -> 500
         current_app.logger.exception("Unhandled error")
-        return jsonify({"error": "internal_error", "message": str(e)}), 500
+        try:
+            record_audit("http_error", {
+                "path": request.path, "method": request.method,
+                "status": 500, "rid": rid
+            })
+        except Exception:
+            current_app.logger.warning("[audit] write failed", exc_info=True)
+
+        return jsonify({"error": "internal_error", "message": "Internal Server Error"}), 500
     return app
