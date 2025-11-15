@@ -64,7 +64,12 @@ def create_app(light: bool = False):
 
     db.init_app(app)
     jwt.init_app(app)
-
+    @app.get("/_routes")
+    def _routes():
+        return {
+            "rules": sorted([f"{r.rule}  [{','.join(r.methods)}] → {r.endpoint}"
+                            for r in app.url_map.iter_rules()])
+        }
     with app.app_context():
         from . import models
         db.create_all()
@@ -293,20 +298,16 @@ def create_app(light: bool = False):
         return resp
     
     # —— 启用文件日志（轮转） ——
-    configure_file_logging(app)
-
+    #configure_file_logging(app)
+    from werkzeug.exceptions import HTTPException
     # —— 统一错误捕获：写入 error.log + 审计轨迹 ——
     @app.errorhandler(Exception)
     def _handle_err(e):
-        app.logger.exception("Unhandled error")
-        try:
-            record_audit("error", level="ERROR", status="500",
-                         message=str(e), meta={"path": request.path})
-        except Exception:
-            pass
-        # 保持原响应风格（可自定义）
+        # 关键：HTTPException（含 404）直接原样返回，别转成 500
+        if isinstance(e, HTTPException):
+            return e
+
+        # 只有非 HTTPException 的“真异常”才记 500
+        current_app.logger.exception("Unhandled error")
         return jsonify({"error": "internal_error", "message": str(e)}), 500
-
-
-
     return app

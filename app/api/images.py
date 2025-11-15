@@ -100,12 +100,24 @@ def view_thumb(image_id):
     if not os.path.exists(path):
         abort(404)
     return send_file(path, as_attachment=False)"""
+"""
 @bp.get("/api/images/<int:image_id>/view")
 @jwt_required(optional=True)
 def view_image(image_id):
     i = ImageModel.query.get_or_404(image_id)
     path = _resolve_image_path(i)
     if not path:
+        abort(404)
+    mime = (getattr(i, "mime", None)
+            or mimetypes.guess_type(path)[0]
+            or "image/jpeg")
+    return send_file(path, mimetype=mime, as_attachment=False, conditional=True)"""
+@bp.get("/api/images/<int:image_id>/view")
+@jwt_required(optional=True)
+def view_image(image_id):
+    i = ImageModel.query.get_or_404(image_id)
+    path = _resolve_image_path(i)          # 尝试自愈
+    if not path:                           # 仍然没有就按规范返回
         abort(404)
     mime = (getattr(i, "mime", None)
             or mimetypes.guess_type(path)[0]
