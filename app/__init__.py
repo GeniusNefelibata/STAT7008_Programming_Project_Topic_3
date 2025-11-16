@@ -22,6 +22,11 @@ def create_app(light: bool = False):
     # ---------- Core config ----------
     app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret")
     app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY", "dev-jwt-secret")
+        # JWT 会话配置：access 30 分钟，refresh 7 天
+    app.config.setdefault("JWT_TOKEN_LOCATION", ["headers"])
+    app.config.setdefault("JWT_ACCESS_TOKEN_EXPIRES", timedelta(minutes=30))
+    app.config.setdefault("JWT_REFRESH_TOKEN_EXPIRES", timedelta(days=7))
+
     # 主业务库（图片/向量等），默认走 instance/image_drive.db；也兼容外部传入 DATABASE_URL
     #暂时修改default_image_db = f"sqlite:///{os.path.abspath(os.path.join(app.instance_path, 'image_drive.db')).replace('\\','/')}"
     # app/__init__.py 修改为：
@@ -155,7 +160,19 @@ def create_app(light: bool = False):
         if not os.path.exists(path):
             return "gallery.html not found. Please create frontend/gallery.html", 404
         return send_file(path)
-
+        
+    @app.get("/login")
+    def login_page():
+        """
+        返回前端登录页面 HTML。
+        约定文件放在项目根目录的 frontend/login.html。
+        """
+        root = os.path.dirname(os.path.dirname(__file__))  # project root
+        path = os.path.join(root, "frontend", "login.html")
+        if not os.path.exists(path):
+            return "login.html not found. Please create frontend/login.html", 404
+        return send_file(path)
+        
     # ---------- Heavy components (Vec + FAISS) ----------
     with app.app_context():
         # 1) 业务库表（图片/embedding/ocr/audit 等）
