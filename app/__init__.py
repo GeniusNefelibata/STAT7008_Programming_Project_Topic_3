@@ -10,6 +10,7 @@ from .extensions import db, jwt
 import uuid, time
 from flask import request, g
 from werkzeug.exceptions import HTTPException
+from datetime import timedelta
 #db = SQLAlchemy()
 jwt = JWTManager()
 
