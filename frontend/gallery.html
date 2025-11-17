@@ -7,7 +7,7 @@
 <style>
   :root{
     --bg:#0b0f14; --panel:#121822; --border:#1f2a3a; --fg:#e6edf3; --muted:#99a7b4; --accent:#6aa9ff;
-    --radius:16px; --w:1280px;
+    --radius:16px; --w:1400px;
   }
   *{box-sizing:border-box}
   html, body{height:100%; margin:0; color:var(--fg); background:var(--bg); font-family:system-ui, -apple-system, Segoe UI, "Microsoft Yahei", sans-serif}
@@ -16,9 +16,17 @@
   .row{display:flex; align-items:center; gap:12px}
   .brand{font-weight:700}
   a.link{color:var(--accent); text-decoration:none}
+
   .container{max-width:var(--w); margin:16px auto; padding:0 18px}
-  .layout{display:grid; grid-template-columns: 280px 1fr; gap:16px; min-height: calc(100vh - 84px)}
-  @media (max-width:1100px){ .layout{grid-template-columns:1fr} }
+  /* 三栏：左-筛选；中-网格；右-相似 */
+  .layout{
+    display:grid;
+    grid-template-columns: 280px 1fr 360px;
+    gap:16px;
+    min-height: calc(100vh - 84px)
+  }
+  @media (max-width:1280px){ .layout{grid-template-columns:280px 1fr} .side{display:none} }
+  @media (max-width:980px){ .layout{grid-template-columns:1fr} }
 
   .panel{border:1px solid var(--border); border-radius:14px; background:linear-gradient(180deg,#0f1520,#0b1119); padding:14px}
   .panel h3{margin:0 0 8px}
@@ -38,22 +46,22 @@
   .thumb-card{border:1px solid var(--border); border-radius:12px; background:#0b1119; overflow:hidden}
   .thumb-card img{width:100%; aspect-ratio:4/3; object-fit:cover; display:block; cursor:pointer}
   .thumb-meta{padding:8px 10px; display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--muted)}
+  .thumb-meta .right a{margin-left:8px}
 
   .footerbar{display:flex; align-items:center; gap:10px; justify-content:flex-start; margin-top:12px}
   .footerbar .info{color:var(--muted); font-size:12px}
   .jump{display:flex; align-items:center; gap:6px}
 
-  /* Lightbox */
-  .lightbox{position:fixed; inset:0; background:rgba(6,10,16,.72); backdrop-filter: blur(6px); display:none; align-items:center; justify-content:center; z-index:80}
-  .lightbox.show{display:flex}
-  .lb-inner{position:relative; max-width:92vw; max-height:86vh; background:linear-gradient(180deg,#0d121a,#0b0f14); border:1px solid var(--border); border-radius:16px; box-shadow:0 30px 80px rgba(0,0,0,.55); padding:16px}
-  .lb-img{max-width:86vw; max-height:72vh; display:block; border-radius:12px}
-  .lb-meta{display:flex; align-items:center; justify-content:space-between; margin-top:10px; color:var(--muted)}
-  .lb-actions{position:absolute; inset:auto 14px 16px 14px; display:flex; justify-content:space-between; pointer-events:none}
-  .lb-btn{pointer-events:auto; width:42px; height:42px; border-radius:999px; border:1px solid #2a3f5a; background:linear-gradient(180deg,#18314c,#142a40); color:var(--fg); display:grid; place-items:center; cursor:pointer; opacity:.92}
-  .lb-btn:hover{filter:brightness(1.08)}
-  .lb-close{position:absolute; top:10px; right:10px}
-  .lb-hint{font-size:12px}
+  /* 右侧 Similar 面板（吸顶、独立滚动） */
+  .side{position:sticky; top:86px; align-self:start; max-height: calc(100vh - 110px); overflow:auto}
+  .side .head{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px}
+  .seed-meta{font-size:13px; color:var(--muted)}
+  .seed-actions{display:flex; gap:8px}
+  .grid-sim{display:grid; grid-template-columns:repeat(2, 1fr); gap:10px}
+  .sim-item{display:block; border:1px solid var(--border); border-radius:10px; overflow:hidden; text-decoration:none; color:inherit; background:#0f1520}
+  .sim-item img{width:100%; height:110px; object-fit:cover; display:block}
+  .sim-item small{display:block; padding:6px 8px; color:var(--muted)}
+  .score{float:right}
 </style>
 </head>
 <body>
@@ -73,7 +81,6 @@
         <label>Category</label>
         <select id="f_category">
           <option value="">All</option>
-          <!-- options will be injected dynamically; no 'uncategorized' here -->
         </select>
       </div>
       <div class="filter-group">
@@ -93,10 +100,12 @@
         <button class="btn" id="btnApply">Apply</button>
         <button class="btn" id="btnReset">Reset</button>
       </div>
-      <div class="muted" style="margin-top:10px">Tip: Click image to preview. Use the button to download; “similar” jumps to Studio.</div>
+      <div class="muted" style="margin-top:10px">
+        Tip: Click an image to view similar results on the right; use “download” to save the original file.
+      </div>
     </aside>
 
-    <!-- Right: Grid + Pagination -->
+    <!-- Middle: Grid + Pagination -->
     <main class="panel">
       <h3>Results</h3>
       <div id="grid" class="grid"></div>
@@ -113,65 +122,57 @@
         </div>
       </div>
     </main>
-  </div>
-</div>
 
-<!-- Lightbox -->
-<div class="lightbox" id="lightbox" aria-modal="true" role="dialog">
-  <div class="lb-inner">
-    <button class="lb-btn lb-close" id="lbClose" title="Close (Esc)">✕</button>
-    <img id="lbImg" class="lb-img" alt="preview"/>
-    <div class="lb-actions">
-      <button class="lb-btn" id="lbPrev" title="Prev (←)">◀</button>
-      <button class="lb-btn" id="lbNext" title="Next (→)">▶</button>
-    </div>
-    <div class="lb-meta">
-      <div id="lbCaption">Preview</div>
-      <div class="lb-hint">
-        <button class="btn" id="lbDownload">Download</button>
-        <span style="margin-left:8px">Esc to close · ← / → to navigate</span>
+    <!-- Right: Similar -->
+    <aside class="panel side" id="simPanel">
+      <div class="head">
+        <div>
+          <h3 style="margin:0 0 4px">Similar</h3>
+          <div class="seed-meta" id="seedMeta">Pick an image to view similar results →</div>
+        </div>
+        <div class="seed-actions" id="seedActions" style="display:none">
+          <button class="btn" id="btnSeedOpen">Open</button>
+          <button class="btn" id="btnSeedDL">Download</button>
+        </div>
       </div>
-    </div>
+      <div id="simGrid" class="grid-sim"></div>
+    </aside>
   </div>
 </div>
 
 <script>
-// ---------- helpers ----------
+/* ---------- helpers ---------- */
 const api = p => (p && p.startsWith('http')) ? p : `${location.origin}${p}`;
 
 function mimeToExt(mime){
   if(!mime) return '';
-  const m = mime.toLowerCase();
+  const m = String(mime).toLowerCase();
   if(m.includes('jpeg') || m.includes('jpg')) return 'jpg';
   if(m.includes('png')) return 'png';
   if(m.includes('webp')) return 'webp';
   if(m.includes('gif')) return 'gif';
   if(m.includes('bmp')) return 'bmp';
   if(m.includes('tiff')) return 'tif';
-  return '';
+  return 'bin';
 }
 
-async function downloadItem(it){
+async function downloadById(id, mimeHint){
   try{
-    const url = api(`/api/images/${it.id}/download`);
+    const url = api(`/api/images/${id}/download`);
     const resp = await fetch(url);
     if(!resp.ok) throw new Error('download failed');
     const blob = await resp.blob();
-    const ext = mimeToExt(it.mime) || mimeToExt(resp.headers.get('Content-Type')) || 'bin';
-    const name = `${it.id}.${ext}`;
-
+    const ext = mimeToExt(mimeHint || resp.headers.get('Content-Type'));
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = name;
-    document.body.appendChild(a);
-    a.click();
+    a.download = `${id}.${ext}`;
+    document.body.appendChild(a); a.click();
     setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0);
   }catch(e){
     alert('Download failed.');
   }
 }
 
-// 兼容两种返回形态：[{category,count}, ...] 或 {items:[...]}
 async function fetchCategories(){
   try{
     const r = await fetch(api('/api/analytics/category_breakdown'));
@@ -192,40 +193,33 @@ async function fetchImages({category='', order='desc', limit=24, page=1}={}){
   if (category) q.set('category', category);
   const r = await fetch(api('/api/images?' + q.toString()));
   if(!r.ok) throw new Error('list images failed');
-  return r.json(); // { items:[...], total: N }
+  return r.json(); // { items:[...], total:N }
 }
 
-function imgCard(it, idx){
+/* ---------- state ---------- */
+let state = { category:'', order:'desc', limit:24, page:1, total:0, totalPages:1 };
+let currentItems = []; // 当前页 items
+let currentSeed = null; // 右侧 seed 详情（{id, mime, category...}）
+
+/* ---------- UI builders ---------- */
+function imgCard(it){
   const el = document.createElement('div');
   el.className = 'thumb-card';
   const thumbUrl = api(`/api/images/${it.id}/thumb`);
   el.innerHTML = `
-    <img src="${thumbUrl}" alt="#${it.id}" title="Click to preview">
+    <img src="${thumbUrl}" alt="#${it.id}" title="Click to view similar">
     <div class="thumb-meta">
       <span>#${it.id} · ${(it.category||'—')}</span>
-      <span>
-        <a href="javascript:void(0)" class="link" style="margin-right:8px" data-dl>download</a>
-        <a href="/#similar=${it.id}" class="link">similar</a>
+      <span class="right">
+        <a href="javascript:void(0)" class="link" data-dl>download</a>
       </span>
     </div>`;
-  // 点击缩略图 -> 预览
-  el.querySelector('img').onclick = () => openLightbox(idx);
+  // 点击缩略图 -> 右侧 Similar
+  el.querySelector('img').onclick = () => showSimilar(it.id);
   // 下载按钮
-  el.querySelector('[data-dl]').onclick = () => downloadItem(it);
+  el.querySelector('[data-dl]').onclick = () => downloadById(it.id, it.mime);
   return el;
 }
-
-// ---------- State ----------
-let state = {
-  category: '',
-  order: 'desc',
-  limit: 24,
-  page: 1,
-  total: 0,
-  totalPages: 1
-};
-let currentItems = []; // 当前页的 items
-let currentIndex = -1; // lightbox 索引
 
 function updatePagerUI(){
   state.totalPages = Math.max(1, Math.ceil((state.total || 0) / state.limit));
@@ -233,52 +227,82 @@ function updatePagerUI(){
   document.getElementById('jumpTo').value = state.page;
 }
 
+/* ---------- Similar panel ---------- */
+async function showSimilar(imageId){
+  // 取 seed 详情
+  try{
+    const r = await fetch(api(`/api/images/${imageId}`));
+    if(!r.ok) throw new Error('seed not found');
+    const seed = await r.json();
+    currentSeed = seed;
+
+    // 顶部 seed 文案 & 按钮
+    const meta = document.getElementById('seedMeta');
+    meta.textContent = `Similar to #${seed.id} · ${(seed.category || '—')}`;
+    const acts = document.getElementById('seedActions');
+    acts.style.display = 'flex';
+    document.getElementById('btnSeedOpen').onclick = ()=> location.href = `/image/${seed.id}`;
+    document.getElementById('btnSeedDL').onclick = ()=> downloadById(seed.id, seed.mime);
+
+    // 取相似
+    const res = await fetch(api(`/api/images/${seed.id}/similar?k=24`));
+    if(!res.ok){ renderSimilar([]); return; }
+    const j = await res.json();
+    const list = Array.isArray(j) ? j : (j.items || j.results || []);
+    renderSimilar(list);
+  }catch(e){
+    currentSeed = null;
+    document.getElementById('seedMeta').textContent = 'Pick an image to view similar results →';
+    document.getElementById('seedActions').style.display = 'none';
+    renderSimilar([]);
+  }
+}
+
+function renderSimilar(list){
+  const box = document.getElementById('simGrid');
+  box.innerHTML = '';
+  if(!list || !list.length){
+    box.innerHTML = `<div class="muted">No similar images.</div>`;
+    return;
+  }
+  // 渲染相似卡片
+  list.forEach(it=>{
+    const iid = it.id ?? it.image_id ?? it.imageId;
+    if(!iid) return;
+    const score = (typeof it.score === 'number' ? it.score : (it.score01 ?? 0));
+    const a = document.createElement('a'); a.className='sim-item'; a.href=`/image/${iid}`;
+    const img = document.createElement('img');
+    img.loading='lazy'; img.src = api(`/api/images/${iid}/thumb`);
+    img.onerror = ()=>{ img.onerror = null; img.src = api(`/api/images/${iid}/view`); };
+    const cap = document.createElement('small');
+    cap.innerHTML = `#${iid} <span class="score">${Math.round((score||0)*100)}%</span>`;
+    a.appendChild(img); a.appendChild(cap); box.appendChild(a);
+  });
+}
+
+/* ---------- data load ---------- */
 async function load(reset=false){
   if(reset){ state.page = 1; }
   const data = await fetchImages(state);
   const items = data.items || [];
-  currentItems = items;            // 存给 lightbox 使用
-  state.total = Number.isFinite(data.total) ? data.total : (state.page-1)*state.limit + items.length; // fallback
+  currentItems = items;
+  state.total = Number.isFinite(data.total) ? data.total : (state.page-1)*state.limit + items.length;
+
   const grid = document.getElementById('grid');
   grid.innerHTML = '';
-  items.forEach((it, i) => grid.appendChild(imgCard(it, i)));
+  items.forEach(it => grid.appendChild(imgCard(it)));
+
   updatePagerUI();
+
+  // 如果右侧还没 seed，默认显示当前页第一张的相似，方便体验
+  if(!currentSeed && items.length){
+    showSimilar(items[0].id);
+  }
 }
 
-// ---------- Lightbox ----------
-function openLightbox(idx){
-  if(idx<0 || idx>=currentItems.length) return;
-  currentIndex = idx;
-  const it = currentItems[idx];
-  const full = api(`/api/images/${it.id}/view`);
-  document.getElementById('lbImg').src = full;
-  document.getElementById('lbCaption').textContent = `#${it.id} · ${(it.category||'—')}`;
-  document.getElementById('lightbox').classList.add('show');
-
-  // 绑定下载当前项
-  const btn = document.getElementById('lbDownload');
-  btn.onclick = () => downloadItem(it);
-}
-function closeLightbox(){ document.getElementById('lightbox').classList.remove('show'); }
-function nextLightbox(){ if(!currentItems.length) return; openLightbox((currentIndex+1)%currentItems.length); }
-function prevLightbox(){ if(!currentItems.length) return; openLightbox((currentIndex-1+currentItems.length)%currentItems.length); }
-document.getElementById('lbClose').onclick = closeLightbox;
-document.getElementById('lbNext').onclick = nextLightbox;
-document.getElementById('lbPrev').onclick = prevLightbox;
-document.getElementById('lightbox').addEventListener('click', e => {
-  if(e.target.id === 'lightbox') closeLightbox();
-});
-window.addEventListener('keydown', e => {
-  const on = document.getElementById('lightbox').classList.contains('show');
-  if(!on) return;
-  if(e.key === 'Escape') closeLightbox();
-  if(e.key === 'ArrowRight') nextLightbox();
-  if(e.key === 'ArrowLeft') prevLightbox();
-});
-
-// ---------- Events ----------
+/* ---------- boot & events ---------- */
 (async function boot(){
-  // 填充类目选项（不含 uncategorized）
+  // 类目填充
   const cats = await fetchCategories();
   const sel = document.getElementById('f_category');
   cats.forEach(c=>{
@@ -291,6 +315,7 @@ window.addEventListener('keydown', e => {
     state.category = document.getElementById('f_category').value;
     state.order    = document.getElementById('f_order').value;
     state.limit    = parseInt(document.getElementById('f_limit').value,10) || 24;
+    currentSeed = null;
     load(true);
   };
 
@@ -299,6 +324,7 @@ window.addEventListener('keydown', e => {
     document.getElementById('f_order').value = 'desc';
     document.getElementById('f_limit').value = '24';
     state = { category:'', order:'desc', limit:24, page:1, total:0, totalPages:1 };
+    currentSeed = null;
     load(true);
   };
 
@@ -314,7 +340,7 @@ window.addEventListener('keydown', e => {
     load(false);
   };
 
-  // initial load
+  // 初次加载
   load(true);
 })();
 </script>

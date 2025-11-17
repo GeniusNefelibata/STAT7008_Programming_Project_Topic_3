@@ -83,12 +83,47 @@
   const $ = s => document.querySelector(s);
   let currentSimCount = 0;
 
+  /* ===== 下载助手：强制按原文件下载并补齐扩展名（与 index 保持一致） ===== */
+  function mimeToExt(mime){
+    if(!mime) return '';
+    const m = mime.toLowerCase();
+    if(m.includes('jpeg') || m.includes('jpg')) return 'jpg';
+    if(m.includes('png')) return 'png';
+    if(m.includes('webp')) return 'webp';
+    if(m.includes('gif')) return 'gif';
+    if(m.includes('bmp')) return 'bmp';
+    if(m.includes('tiff')) return 'tif';
+    return '';
+  }
+  async function downloadById(imgId, mimeHint){
+    try{
+      const url = `/api/images/${imgId}/download`;
+      const resp = await fetch(url);
+      if(!resp.ok) throw new Error('download failed');
+      const blob = await resp.blob();
+      const ext = mimeToExt(mimeHint) || mimeToExt(resp.headers.get('Content-Type')) || 'bin';
+      const name = `${imgId}.${ext}`;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0);
+    }catch(e){
+      alert('Download failed.');
+    }
+  }
+
   async function loadDetail(){
     const r = await fetch(`/api/images/${id}`);
     const j = await r.json();
     $('#title').textContent = `Image #${j.id} (${j.width}×${j.height})`;
     $('#img').src = `/api/images/${id}/view`;
-    $('#btnDownload').href = `/api/images/${id}/download`;
+
+    const btn = $('#btnDownload');
+    btn.href = 'javascript:void(0)';
+    btn.onclick = (e)=>{ e.preventDefault(); downloadById(j.id, j.mime || ''); };
+
     $('#meta').textContent = `sha256=${j.sha256} • ${Math.round((j.size_bytes||0)/1024)} KB • ${j.mime||''} • category=${j.category||''}`;
   }
 
@@ -144,3 +179,5 @@
   loadSimilar();
 })();
 </script>
+</body>
+</html>
