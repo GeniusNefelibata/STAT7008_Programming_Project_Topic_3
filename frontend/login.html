@@ -3,150 +3,225 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sign in / Register · Image Drive</title>
+  <title>NEURAL DRIVE // LOGIN</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Rajdhani:wght@500;600;700&family=Space+Grotesk:wght@300;500;700&display=swap" rel="stylesheet">
+
   <style>
-    :root{
-      --bg: #0b1220;
-      --panel: #0f172a;
-      --panel-2: #0d1526;
-      --text: #e5e7eb;
-      --muted: #97a3b6;
-      --accent: #60a5fa;
-      --accent-2: #38bdf8;
-      --border: #1f2937;
-      --shadow: 0 10px 30px rgba(0,0,0,.45);
-      --radius-lg: 14px;
-      --radius-md: 12px;
+    /* Cyberpunk Theme - Consistent with index.html */
+    :root {
+      --bg-core: #050505;
+      --bg-panel: rgba(10, 15, 20, 0.7);
+
+      --neon-cyan: #00f3ff;
+      --neon-magenta: #ff0055;
+      --neon-yellow: #fcee0a;
+
+      --grid-color: rgba(0, 243, 255, 0.07);
+      --border-dim: rgba(0, 243, 255, 0.15);
+      --border-lit: rgba(0, 243, 255, 0.6);
+
+      --text-main: #e0f7fa;
+      --text-muted: #617d8a;
+
+      --font-hud: 'Rajdhani', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
     }
+
+    * { box-sizing: border-box; outline: none; }
 
     html, body {
       margin: 0;
       padding: 0;
       height: 100%;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      color: #e2e8f0;
-      background: radial-gradient(
-          circle at 20% 10%,
-          rgba(56, 189, 248, 0.08) 0%,
-          transparent 50%
-        ),
-        radial-gradient(
-          circle at 90% 30%,
-          rgba(56, 189, 248, 0.1) 0%,
-          transparent 55%
-        ),
-        linear-gradient(180deg, #0f172a 0%, #0a0f1e 100%);
-      background-repeat: no-repeat;
-      background-attachment: fixed;
-      background-size: cover;
+      overflow: hidden;
+      background-color: var(--bg-core);
+      color: var(--text-main);
+      font-family: var(--font-hud);
+      background-image:
+        linear-gradient(var(--grid-color) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-color) 1px, transparent 1px),
+        radial-gradient(circle at 50% 0%, rgba(0, 243, 255, 0.1) 0%, transparent 60%);
+      background-size: 40px 40px, 40px 40px, 100% 100%;
+      background-position: center top;
+      perspective: 1000px;
     }
 
-    .wrap{
-      max-width: 880px;
-      margin: 64px auto;
-      padding: 0 22px;
+    body::after {
+      content: " "; display: block; position: absolute;
+      top: 0; left: 0; bottom: 0; right: 0;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
+      background-size: 100% 3px; z-index: 2; pointer-events: none; opacity: 0.4;
     }
 
-    .title{
-      display:flex; align-items:center; gap:12px;
-      font-weight:800; letter-spacing:.5px; margin:0 0 18px; line-height:1.2;
-    }
-    .title .dot{
-      width:22px; height:22px; border-radius:50%;
-      background:linear-gradient(135deg, var(--accent), var(--accent-2));
-      box-shadow:0 0 16px rgba(56,189,248,.45);
-    }
-    .subtitle{ color:var(--muted); margin:4px 0 22px; font-size:14px; }
-
-    .card{
-      background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.01)) , var(--panel);
-      border:1px solid var(--border);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow);
-      padding: 22px;
+    .wrap {
+      max-width: 480px;
+      margin: 80px auto;
+      position: relative;
+      z-index: 10;
+      padding: 0 20px;
     }
 
-    .tabs{ display:inline-flex; border:1px solid var(--border); border-radius:12px; overflow:hidden; }
-    .tabs button{
-      background:transparent; color:var(--muted); border:0; padding:10px 16px; cursor:pointer;
-    }
-    .tabs button.active{
-      color:#0b1220; background:linear-gradient(135deg, var(--accent), var(--accent-2));
-      font-weight:700;
+    .header-group {
+      text-align: center; margin-bottom: 40px;
     }
 
-    .grid{ display:grid; grid-template-columns: 1fr; gap:12px; margin-top:16px; }
-    label{ font-weight:700; color:var(--text); margin-top:6px; }
-    .input{
-      width:100%; padding:13px 14px;
-      background: #0b1324; color:var(--text);
-      border:1px solid #1b2435; border-radius:12px; outline:none;
-      transition: border .15s, box-shadow .15s;
+    .title {
+      display: flex; align-items: center; justify-content: center; gap: 12px;
+      font-weight: 800; letter-spacing: 2px; margin: 0 0 10px;
+      font-size: 32px; color: #fff; text-shadow: 0 0 15px var(--neon-cyan);
+      text-transform: uppercase;
     }
-    .input::placeholder{ color:#6b7280; }
-    .input:focus{
-      border-color: #2a3a5c;
-      box-shadow: 0 0 0 3px rgba(96,165,250,.22);
+    .logo {
+      width: 40px; height: 40px; background: var(--neon-cyan); color: #000;
+      clip-path: polygon(20% 0%, 100% 0, 100% 80%, 80% 100%, 0 100%, 0% 20%);
+      display: grid; place-items: center; font-size: 24px;
+      animation: flicker 4s infinite;
+    }
+    @keyframes flicker {
+      0%, 19.9%, 62.9%, 64.9%, 100% { opacity: 1; }
+      20%, 63% { opacity: 0.5; }
     }
 
-    .primary{
-      margin-top:10px; width:100%; padding:12px 16px;
-      border-radius:12px; border:1px solid transparent;
-      background: linear-gradient(135deg, var(--accent), var(--accent-2));
-      color:#0b1220; font-weight:800; cursor:pointer;
-      box-shadow:0 6px 18px rgba(56,189,248,.25);
+    .subtitle {
+      color: var(--text-muted); font-size: 12px; font-family: var(--font-mono);
+      text-transform: uppercase; letter-spacing: 1px;
     }
-    .primary:hover{ filter:brightness(1.05); }
-    .primary[disabled]{ opacity:.65; cursor:not-allowed; }
 
-    .actions{
-      display:flex; gap:10px; margin-top:10px;
+    .card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-dim);
+      clip-path: polygon(
+        0 0,
+        100% 0,
+        100% calc(100% - 20px),
+        calc(100% - 20px) 100%,
+        0 100%
+      );
+      padding: 40px;
+      position: relative;
     }
-    .btn{
-      flex:1; padding:10px 12px; border-radius:10px; cursor:pointer;
-      color:var(--text); background: var(--panel-2); border:1px solid #1b2435;
+    .card::before {
+      content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%;
+      background: var(--neon-cyan);
+      box-shadow: 2px 0 10px var(--neon-cyan);
     }
-    .btn:hover{ border-color:#2a3a5c; }
 
-    .msg{ margin-top:12px; padding:10px 12px; border-radius:12px; border:1px solid #1b2435; display:none; }
-    .msg.ok{ display:block; border-color:#10b981; background:rgba(16,185,129,.12); }
-    .msg.err{ display:block; border-color:#ef4444; background:rgba(239,68,68,.12); }
+    .tabs {
+      display: flex; border-bottom: 1px solid var(--border-dim); margin-bottom: 30px;
+    }
+    .tabs button {
+      flex: 1; background: transparent; color: var(--text-muted); border: 0;
+      padding: 12px; cursor: pointer; font-family: var(--font-mono); font-size: 12px;
+      transition: all 0.3s;
+    }
+    .tabs button:hover { color: var(--neon-cyan); }
+    .tabs button.active {
+      color: #000; background: var(--neon-cyan); font-weight: 700;
+      box-shadow: 0 0 15px rgba(0, 243, 255, 0.3);
+    }
+
+    .grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+
+    label {
+      display: block; font-family: var(--font-mono); font-size: 10px;
+      color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase;
+    }
+
+    .input {
+      width: 100%; padding: 14px;
+      background: #000; color: var(--neon-cyan);
+      border: 1px solid var(--border-dim);
+      font-family: var(--font-mono); font-size: 14px;
+      transition: all 0.3s;
+    }
+    .input::placeholder { color: #444; }
+    .input:focus {
+      border-color: var(--neon-cyan);
+      box-shadow: 0 0 10px rgba(0, 243, 255, 0.2);
+    }
+
+    .primary {
+      margin-top: 10px; width: 100%; padding: 14px;
+      background: var(--neon-cyan); color: #000; border: none;
+      font-family: var(--font-hud); font-weight: 700; font-size: 16px; letter-spacing: 1px;
+      cursor: pointer; text-transform: uppercase;
+      clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+      transition: all 0.2s;
+    }
+    .primary:hover {
+      background: #fff; box-shadow: 0 0 20px var(--neon-cyan);
+    }
+    .primary[disabled] { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+
+    .actions {
+      display: flex; gap: 10px; margin-top: 20px; border-top: 1px solid var(--border-dim); padding-top: 20px;
+    }
+    .btn {
+      flex: 1; padding: 8px; font-family: var(--font-mono); font-size: 10px;
+      color: var(--text-muted); background: transparent; border: 1px solid var(--border-dim);
+      cursor: pointer; text-transform: uppercase; transition: all 0.2s;
+    }
+    .btn:hover { color: var(--neon-cyan); border-color: var(--neon-cyan); }
+
+    .msg {
+      margin-top: 20px; padding: 12px;
+      font-family: var(--font-mono); font-size: 11px;
+      border: 1px solid var(--border-dim); display: none;
+    }
+    .msg.ok { border-color: var(--neon-cyan); color: var(--neon-cyan); background: rgba(0, 243, 255, 0.05); }
+    .msg.err { border-color: var(--neon-magenta); color: var(--neon-magenta); background: rgba(255, 0, 85, 0.05); }
+
+    /* Back Link */
+    .back-link {
+      display: block; text-align: center; margin-top: 30px;
+      color: var(--text-muted); font-family: var(--font-mono); font-size: 12px;
+      text-decoration: none; transition: color 0.2s;
+    }
+    .back-link:hover { color: var(--neon-cyan); }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1 class="title"><span class="dot"></span>Image Drive · Login</h1>
-    <div class="subtitle">Sign in or register to use Image Drive · Studio</div>
+    <div class="header-group">
+      <div class="title">
+        <div class="logo">ID</div>
+        NEURAL DRIVE
+      </div>
+      <div class="subtitle">SECURE ACCESS PROTOCOL // V.2077</div>
+    </div>
 
     <div class="card">
       <div class="tabs" role="tablist">
-        <button id="tabLogin" class="active" aria-selected="true">Sign in</button>
-        <button id="tabRegister" aria-selected="false">Register</button>
+        <button id="tabLogin" class="active" aria-selected="true">AUTHENTICATE</button>
+        <button id="tabRegister" aria-selected="false">INITIALIZE NEW USER</button>
       </div>
 
       <div class="grid">
         <div>
-          <label for="email">Email</label>
-          <input id="email" class="input" type="email"
-                 placeholder="name@example.com" autocomplete="username" />
+          <label for="email">USER IDENTITY (EMAIL)</label>
+          <input id="email" class="input" type="email" placeholder="USER@DOMAIN.NET" autocomplete="username" />
         </div>
         <div>
-          <label for="password">Password</label>
-          <input id="password" class="input" type="password"
-                 placeholder="••••••••" autocomplete="current-password" />
+          <label for="password">ACCESS CODE (PASSWORD)</label>
+          <input id="password" class="input" type="password" placeholder="********" autocomplete="current-password" />
         </div>
 
-        <button id="btnPrimary" class="primary">Sign in</button>
+        <button id="btnPrimary" class="primary">ESTABLISH CONNECTION</button>
+
+        <div class="msg" id="msg"></div>
 
         <div class="actions">
-          <button id="btnRefresh" class="btn">Refresh Access</button>
-          <button id="btnCheck" class="btn">Check Status</button>
-          <button id="btnLogout" class="btn">Sign out</button>
+          <button id="btnRefresh" class="btn">REFRESH TOKEN</button>
+          <button id="btnCheck" class="btn">STATUS CHECK</button>
+          <button id="btnLogout" class="btn">TERMINATE SESSION</button>
         </div>
-
-        <div id="msg" class="msg"></div>
       </div>
     </div>
+
+    <a href="http://127.0.0.1:5000/" class="back-link">← RETURN TO STUDIO INTERFACE</a>
   </div>
 
   <script>
@@ -158,13 +233,14 @@
       const box = $("msg");
       box.textContent = text || "";
       box.className = "msg " + (ok ? "ok" : "err");
+      box.style.display = text ? "block" : "none";
     }
 
     $("tabLogin").onclick = () => {
       mode = "login";
       $("tabLogin").classList.add("active");
       $("tabRegister").classList.remove("active");
-      $("btnPrimary").textContent = "Sign in";
+      $("btnPrimary").textContent = "ESTABLISH CONNECTION";
       showMsg(false, "");
     };
 
@@ -172,7 +248,7 @@
       mode = "register";
       $("tabRegister").classList.add("active");
       $("tabLogin").classList.remove("active");
-      $("btnPrimary").textContent = "Register & sign in";
+      $("btnPrimary").textContent = "INITIALIZE & CONNECT";
       showMsg(false, "");
     };
 
@@ -195,19 +271,19 @@
       const email = $("email").value.trim();
       const password = $("password").value;
       if(!email || !password){
-        showMsg(false, "Please enter both email and password.");
+        showMsg(false, "INPUT REQUIRED: EMAIL & PASSWORD");
         return;
       }
       const btn = $("btnPrimary");
       btn.disabled = true;
       const prev = btn.textContent;
-      btn.textContent = "Processing…";
+      btn.textContent = "PROCESSING...";
 
       try{
         if(mode === "register"){
           const reg = await postJson(`${AUTH_BASE}/register`, {email,password});
           if(!(reg.ok && reg.json && reg.json.ok)){
-            showMsg(false, reg.json.error || `Registration failed (HTTP ${reg.status})`);
+            showMsg(false, reg.json.error || `REGISTRATION FAILED (HTTP ${reg.status})`);
             btn.disabled = false; btn.textContent = prev;
             return;
           }
@@ -216,13 +292,14 @@
         if(res.ok && res.json && res.json.ok){
           localStorage.setItem("access_token",  res.json.access_token || "");
           localStorage.setItem("refresh_token", res.json.refresh_token || "");
-          showMsg(true, "Signed in, redirecting to Studio …");
-          setTimeout(()=> window.location.href="/", 700);
+          showMsg(true, "ACCESS GRANTED. REDIRECTING...");
+          // 修复跳转：指向同级 index.html
+          setTimeout(()=> window.location.href="index.html", 700);
         }else{
-          showMsg(false, res.json.error || `Sign-in failed (HTTP ${res.status})`);
+          showMsg(false, res.json.error || `ACCESS DENIED (HTTP ${res.status})`);
         }
       }catch(e){
-        showMsg(false, "Network error: "+e);
+        showMsg(false, "NETWORK ERROR: "+e);
       }finally{
         btn.disabled = false;
         btn.textContent = prev;
@@ -232,7 +309,7 @@
     $("btnRefresh").onclick = async ()=>{
       const refresh = localStorage.getItem("refresh_token");
       if(!refresh){
-        showMsg(false,"Not signed in.");
+        showMsg(false,"NO SESSION DETECTED.");
         return;
       }
       const r = await fetch(`${AUTH_BASE}/refresh`,{
@@ -242,16 +319,16 @@
       let j={};try{j=await r.json();}catch(e){}
       if(r.ok && j.ok && j.access_token){
         localStorage.setItem("access_token", j.access_token);
-        showMsg(true,"Access token refreshed.");
+        showMsg(true,"TOKEN REFRESHED.");
       }else{
-        showMsg(false, j.error || `Refresh failed (HTTP ${r.status})`);
+        showMsg(false, j.error || `REFRESH FAILED (HTTP ${r.status})`);
       }
     };
 
     $("btnCheck").onclick = async ()=>{
       const access = localStorage.getItem("access_token");
       if(!access){
-        showMsg(false,"Not signed in.");
+        showMsg(false,"NO ACTIVE SESSION.");
         return;
       }
       const r = await fetch(`${AUTH_BASE}/me`,{
@@ -260,11 +337,11 @@
       if(r.ok){
         const j = await r.json().catch(()=>({}));
         const who = (j.user && j.user.email) || j.email || j.id || "unknown";
-        showMsg(true,"Signed in as: "+who);
+        showMsg(true,"USER: "+who.toUpperCase());
       }else if(r.status===401){
-        showMsg(false,"Unauthorized or token expired.");
+        showMsg(false,"UNAUTHORIZED / EXPIRED.");
       }else{
-        showMsg(false,"Status check failed (HTTP "+r.status+")");
+        showMsg(false,"CHECK FAILED (HTTP "+r.status+")");
       }
     };
 
@@ -280,7 +357,7 @@
       }catch(e){}
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
-      showMsg(true,"Signed out.");
+      showMsg(true,"SESSION TERMINATED.");
     };
   </script>
 </body>

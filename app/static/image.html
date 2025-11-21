@@ -3,77 +3,184 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Image · Detail</title>
+  <title>NEURAL DRIVE // ASSET DETAIL</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Rajdhani:wght@500;600;700&family=Space+Grotesk:wght@300;500;700&display=swap" rel="stylesheet">
+
   <style>
-  :root{
-    --bg:#0b0f14;--panel:#121822;--border:#1f2a3a;--fg:#e6edf3;--muted:#9bb;--accent:#6aa9ff;
-    /* JS 会改这个变量来控制 Similar 的列数 */
-    --sim-cols:2;
-  }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-sans-serif,system-ui}
+    :root {
+      /* Cyberpunk Palette 2.0 (Inherited from Index) */
+      --bg-core: #050505;
+      --bg-panel: rgba(10, 15, 20, 0.7);
+      --neon-cyan: #00f3ff;
+      --neon-magenta: #ff0055;
+      --neon-yellow: #fcee0a;
+      --grid-color: rgba(0, 243, 255, 0.07);
+      --border-dim: rgba(0, 243, 255, 0.15);
+      --text-main: #e0f7fa;
+      --text-muted: #617d8a;
+      --font-hud: 'Rajdhani', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --sim-cols: 2; /* Dynamic Column Var */
+    }
 
-  /* 主布局：左主图 + 右相似 */
-  .wrap{
-    max-width:1400px;margin:0 auto;
-    display:grid;grid-template-columns:minmax(560px,1fr) 380px;
-    gap:20px;padding:18px;
-  }
-  /* 窄屏：上下布局 */
-  @media (max-width: 1200px){
-    .wrap{grid-template-columns:1fr}
-    .side{position:static;max-height:none}
-  }
+    * { box-sizing: border-box; outline: none; }
+    body {
+      margin: 0; background-color: var(--bg-core); color: var(--text-main);
+      font-family: var(--font-hud);
+      background-image:
+        linear-gradient(var(--grid-color) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-color) 1px, transparent 1px),
+        radial-gradient(circle at 50% 0%, rgba(0, 243, 255, 0.1) 0%, transparent 60%);
+      background-size: 40px 40px, 40px 40px, 100% 100%;
+      background-position: center top;
+      height: 100vh; overflow: hidden;
+    }
+    body::after {
+      content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
+      background-size: 100% 3px; z-index: 2; pointer-events: none; opacity: 0.4;
+    }
 
-  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
-  .main{min-height:70vh;display:grid;grid-template-rows:auto 1fr auto}
+    /* Header */
+    header {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(5, 5, 5, 0.8); backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border-dim); height: 70px;
+      display: flex; align-items: center; padding: 0 32px;
+      box-shadow: 0 5px 20px rgba(0, 243, 255, 0.05);
+    }
 
-  header{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border)}
-  header a{color:var(--accent);text-decoration:none}
+    .brand {
+      display: flex; align-items: center; gap: 16px;
+      font-family: var(--font-hud); font-weight: 700; font-size: 24px; letter-spacing: 2px;
+      color: #fff; text-shadow: 0 0 10px var(--neon-cyan); cursor: pointer;
+    }
+    .logo {
+      width: 40px; height: 40px; background: var(--neon-cyan); color: #000;
+      clip-path: polygon(20% 0%, 100% 0, 100% 80%, 80% 100%, 0 100%, 0% 20%);
+      display: grid; place-items: center; font-size: 22px;
+    }
 
-  /* 主图容器：保证合理可视区 */
-  .imgbox{display:grid;place-items:center;padding:18px;min-height:320px}
-  .imgbox img{
-    /* 限制最大尺寸：不会太小也不会溢出屏幕 */
-    max-width:min(100%, 920px);
-    max-height:65vh;
-    width:auto;height:auto;border-radius:12px;
-  }
+    /* Layout */
+    .wrap {
+      max-width: 1600px; margin: 0 auto; padding: 20px 32px;
+      height: calc(100vh - 70px); position: relative; z-index: 5;
+      display: grid; grid-template-columns: 1fr 420px; gap: 32px;
+    }
+    @media (max-width: 1100px){ .wrap { grid-template-columns: 1fr; overflow-y: auto; } }
 
-  .meta{padding:10px 14px;color:var(--muted)}
+    /* Panels */
+    .panelBox {
+      background: var(--bg-panel); border: 1px solid var(--border-dim);
+      clip-path: polygon(0 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%);
+      position: relative; padding: 24px; display: flex; flex-direction: column;
+      height: 100%; overflow: hidden;
+    }
+    .panelBox::before {
+      content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%;
+      background: var(--neon-cyan); box-shadow: 2px 0 10px var(--neon-cyan);
+    }
 
-  /* 右侧 Similar：吸顶 + 独立滚动 */
-  .side{position:sticky;top:18px;align-self:start;max-height:calc(100vh - 36px);overflow:auto}
-  .side header{padding:10px 12px;border-bottom:1px solid var(--border)}
+    /* Main Image Area */
+    .detail-header {
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid var(--border-dim); padding-bottom: 16px; margin-bottom: 16px;
+    }
+    .nav-btn {
+      font-family: var(--font-mono); font-size: 12px; color: var(--neon-cyan);
+      background: transparent; border: 1px solid var(--border-dim);
+      padding: 8px 20px; cursor: pointer; text-transform: uppercase; letter-spacing: 1px;
+      transition: all 0.2s; text-decoration: none; display: inline-block;
+    }
+    .nav-btn:hover { background: var(--neon-cyan); color: #000; box-shadow: 0 0 15px var(--neon-cyan); }
 
-  /* Similar 网格：列数由 --sim-cols 控制 */
-  .grid{display:grid;grid-template-columns:repeat(var(--sim-cols), 1fr);gap:10px;padding:12px}
-  .thumb{display:block;border:1px solid var(--border);border-radius:10px;overflow:hidden;text-decoration:none;color:inherit;background:#0f1520}
-  .thumb img{width:100%;height:110px;object-fit:cover;display:block}
-  .thumb small{display:block;padding:6px 8px;color:var(--muted)}
-  .score{float:right}
+    .imgbox {
+      flex: 1; display: flex; justify-content: center; align-items: center;
+      background: rgba(0,0,0,0.3); border: 1px dashed var(--border-dim);
+      margin-bottom: 16px; position: relative; overflow: hidden;
+    }
+    .imgbox img {
+      max-width: 100%; max-height: 100%; object-fit: contain;
+      box-shadow: 0 0 30px rgba(0, 243, 255, 0.1);
+    }
+    .meta {
+      font-family: var(--font-mono); font-size: 12px; color: var(--text-muted);
+      padding: 12px; background: rgba(0,0,0,0.5); border-left: 2px solid var(--neon-yellow);
+    }
 
-  /* 条目很多时，适度缩小缩略图高度以容纳更多行 */
-  .grid.compact .thumb img{height:96px}
-  .grid.ultra   .thumb img{height:86px}
-</style>
+    /* Sidebar (Similar) */
+    .side-header {
+      font-family: var(--font-mono); color: var(--neon-yellow);
+      font-size: 14px; text-transform: uppercase; margin-bottom: 16px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .side-header::after { content: ''; flex: 1; height: 1px; background: var(--border-dim); }
 
+    .side-scroll { flex: 1; overflow-y: auto; padding-right: 8px; }
+
+    .grid {
+      display: grid; grid-template-columns: repeat(var(--sim-cols), 1fr); gap: 16px;
+    }
+
+    .thumb-card {
+      border: 1px solid var(--border-dim); background: rgba(0,0,0,0.4);
+      text-decoration: none; color: inherit; display: block; transition: all 0.2s;
+      position: relative;
+    }
+    .thumb-card:hover {
+      border-color: var(--neon-cyan); transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0, 243, 255, 0.1);
+    }
+    .thumb-card img {
+      width: 100%; height: 120px; object-fit: cover; display: block;
+      filter: grayscale(40%); transition: filter 0.2s;
+    }
+    .thumb-card:hover img { filter: grayscale(0%); }
+    .thumb-info {
+      padding: 8px; font-family: var(--font-mono); font-size: 10px;
+      display: flex; justify-content: space-between; color: var(--text-muted);
+    }
+    .score { color: var(--neon-cyan); }
+
+    /* Scrollbars */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #000; }
+    ::-webkit-scrollbar-thumb { background: var(--border-dim); }
+    ::-webkit-scrollbar-thumb:hover { background: var(--neon-cyan); }
+  </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="card main">
-    <header>
-      <a href="/">← Back</a>
-      <div id="title">Image #</div>
-      <div style="flex:1"></div>
-      <a id="btnDownload" href="#" download>Download</a>
-    </header>
-    <div class="imgbox"><img id="img" alt=""/></div>
-    <div class="meta" id="meta"></div>
+
+<header>
+  <div class="brand" onclick="location.href='/'">
+    <div class="logo">N</div>
+    <div>NEURAL DRIVE <small style="font-size: 10px; color:var(--neon-magenta);">// ASSET.VIEWER</small></div>
   </div>
-  <div class="card side">
-    <header>Similar</header>
-    <div class="grid" id="similar"></div>
+</header>
+
+<div class="wrap">
+  <!-- Left: Main Image -->
+  <div class="panelBox">
+    <div class="detail-header">
+      <a href="/" class="nav-btn">← BACK TO GRID</a>
+      <div id="title" style="font-family:var(--font-mono); color:var(--neon-cyan)">LOADING ASSET...</div>
+      <a id="btnDownload" href="#" class="nav-btn">DOWNLOAD DATA</a>
+    </div>
+    <div class="imgbox">
+      <img id="img" alt="Asset Preview"/>
+    </div>
+    <div class="meta" id="meta">Waiting for stream...</div>
+  </div>
+
+  <!-- Right: Similar Feed -->
+  <div class="panelBox">
+    <div class="side-header">/// SIMILAR PATTERNS DETECTED</div>
+    <div class="side-scroll">
+      <div class="grid" id="similar"></div>
+    </div>
   </div>
 </div>
 
@@ -83,7 +190,6 @@
   const $ = s => document.querySelector(s);
   let currentSimCount = 0;
 
-  /* ===== 下载助手：强制按原文件下载并补齐扩展名（与 index 保持一致） ===== */
   function mimeToExt(mime){
     if(!mime) return '';
     const m = mime.toLowerCase();
@@ -91,10 +197,9 @@
     if(m.includes('png')) return 'png';
     if(m.includes('webp')) return 'webp';
     if(m.includes('gif')) return 'gif';
-    if(m.includes('bmp')) return 'bmp';
-    if(m.includes('tiff')) return 'tif';
     return '';
   }
+
   async function downloadById(imgId, mimeHint){
     try{
       const url = `/api/images/${imgId}/download`;
@@ -102,49 +207,43 @@
       if(!resp.ok) throw new Error('download failed');
       const blob = await resp.blob();
       const ext = mimeToExt(mimeHint) || mimeToExt(resp.headers.get('Content-Type')) || 'bin';
-      const name = `${imgId}.${ext}`;
+      const name = `asset-${imgId}.${ext}`;
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = name;
       document.body.appendChild(a);
       a.click();
       setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0);
-    }catch(e){
-      alert('Download failed.');
-    }
+    }catch(e){ alert('Download failed.'); }
   }
 
   async function loadDetail(){
-    const r = await fetch(`/api/images/${id}`);
-    const j = await r.json();
-    $('#title').textContent = `Image #${j.id} (${j.width}×${j.height})`;
-    $('#img').src = `/api/images/${id}/view`;
+    try {
+        const r = await fetch(`/api/images/${id}`);
+        if(!r.ok) throw new Error("Asset not found");
+        const j = await r.json();
 
-    const btn = $('#btnDownload');
-    btn.href = 'javascript:void(0)';
-    btn.onclick = (e)=>{ e.preventDefault(); downloadById(j.id, j.mime || ''); };
+        $('#title').innerHTML = `ASSET ID <span style="color:var(--text-main)">#${j.id}</span> [${j.width}×${j.height}]`;
+        $('#img').src = `/api/images/${id}/view`;
 
-    $('#meta').textContent = `sha256=${j.sha256} • ${Math.round((j.size_bytes||0)/1024)} KB • ${j.mime||''} • category=${j.category||''}`;
+        const btn = $('#btnDownload');
+        btn.onclick = (e)=>{ e.preventDefault(); downloadById(j.id, j.mime || ''); };
+
+        $('#meta').innerHTML = `HASH: ${j.sha256 || 'N/A'}<br>SIZE: ${Math.round((j.size_bytes||0)/1024)} KB<br>TYPE: ${j.mime||'UNKNOWN'}<br>TAG: ${j.category||'UNCATEGORIZED'}`;
+    } catch(e) {
+        $('#title').textContent = "ERROR LOADING ASSET";
+    }
   }
 
-  /* ➜ 根据数量与屏幕宽度自适应列数 */
   function setSimilarColumns(count){
     currentSimCount = count;
-    const w = window.innerWidth;
-    let cols = 1;
-    if (count >= 4) cols = 2;
-    if (count >= 9  && w >= 1360) cols = 3;
-    if (count >= 16 && w >= 1680) cols = 4;
+    // Logic adapted for side panel width ~400px
+    let cols = 2;
+    if (window.innerWidth < 1200) cols = 3; // When stacked vertically, use more cols
     document.documentElement.style.setProperty('--sim-cols', cols);
-
-    // 很多条目时，缩略图略微变小
-    const grid = $('#similar');
-    grid.classList.toggle('compact', count >= 12);
-    grid.classList.toggle('ultra',   count >= 24);
   }
   window.addEventListener('resize', ()=>setSimilarColumns(currentSimCount));
 
-  /* ➜ 相似图渲染（兼容 items / results / 数组，缩略图404回退到原图） */
   async function loadSimilar(){
     const res = await fetch(`/api/images/${id}/similar?k=24`);
     const j = await res.json();
@@ -153,7 +252,7 @@
 
     const box = $('#similar'); box.innerHTML='';
     if (!list.length){
-      box.innerHTML = `<div style="padding:12px;color:var(--muted)">No similar images.</div>`;
+      box.innerHTML = `<div style="padding:12px;color:var(--text-muted);font-family:var(--font-mono)">// NO MATCHES FOUND</div>`;
       return;
     }
 
@@ -162,19 +261,21 @@
       if (!iid) return;
       const score = (typeof it.score === 'number' ? it.score : (it.score01 ?? 0));
 
-      const a = document.createElement('a'); a.className='thumb'; a.href=`/image/${iid}`;
+      const card = document.createElement('a');
+      card.className='thumb-card'; card.href=`/image/${iid}`;
+
       const img = document.createElement('img');
       img.loading='lazy'; img.src=`/api/images/${iid}/thumb`;
       img.onerror = () => { img.onerror = null; img.src = `/api/images/${iid}/view`; };
 
-      const cap = document.createElement('small');
-      cap.innerHTML = `#${iid} <span class="score">${Math.round(score*100)}%</span>`;
+      const info = document.createElement('div');
+      info.className = 'thumb-info';
+      info.innerHTML = `<span>#${iid}</span> <span class="score">${(score*100).toFixed(0)}%</span>`;
 
-      a.appendChild(img); a.appendChild(cap); box.appendChild(a);
+      card.appendChild(img); card.appendChild(info); box.appendChild(card);
     });
   }
 
-  // 调用顺序
   loadDetail();
   loadSimilar();
 })();
